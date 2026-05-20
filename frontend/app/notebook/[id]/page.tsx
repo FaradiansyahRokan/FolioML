@@ -26,6 +26,7 @@ export default function NotebookPage() {
 
   const [notebook, setNotebook] = useState<Notebook | null>(null);
   const [allDocuments, setAllDocuments] = useState<Document[]>([]);
+  const [uploadingDocs, setUploadingDocs] = useState<Document[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -158,10 +159,21 @@ export default function NotebookPage() {
     setNotebook((prev) => prev ? { ...prev, messages: updater(prev.messages), updatedAt: new Date().toISOString() } : prev);
   }
 
-  const handleDocumentAdded = (doc: Document) => {
+  const handleDocumentAdded = (doc: Document, tempId?: number) => {
+    if (tempId) {
+      setUploadingDocs(prev => prev.filter(d => d.id !== tempId));
+    }
     setAllDocuments((p) => [doc, ...p]);
     setNotebook((prev) => prev ? { ...prev, documentIds: [doc.id, ...prev.documentIds], updatedAt: new Date().toISOString() } : prev);
-    addToast(`"${doc.name}" added to notebook`, "success");
+    if (!tempId) addToast(`"${doc.name}" added to notebook`, "success"); // Toast is handled in UploadButton for normal uploads
+  };
+
+  const handleUploadStart = (tempId: number, name: string) => {
+    setUploadingDocs(prev => [{ id: tempId, name, created_at: new Date().toISOString(), isUploading: true }, ...prev]);
+  };
+
+  const handleUploadError = (tempId: number) => {
+    setUploadingDocs(prev => prev.filter(d => d.id !== tempId));
   };
 
   const handleSidebarSearch = async () => {
@@ -264,9 +276,10 @@ export default function NotebookPage() {
   }, []);
 
   // Filter documents if searchType is "documents"
+  const combinedDocs = [...uploadingDocs, ...notebookDocs];
   const displayedDocs = searchType === "documents" && sidebarSearchQuery.trim()
-    ? notebookDocs.filter(d => d.name.toLowerCase().includes(sidebarSearchQuery.toLowerCase()))
-    : notebookDocs;
+    ? combinedDocs.filter(d => d.name.toLowerCase().includes(sidebarSearchQuery.toLowerCase()))
+    : combinedDocs;
 
   if (!loaded) return <div className="h-screen flex items-center justify-center bg-[#f0f4f9]"><Loader2 className="w-6 h-6 animate-spin text-zinc-400" /></div>;
 
@@ -321,7 +334,13 @@ export default function NotebookPage() {
             
             <div className="p-4 flex flex-col gap-3">
               {/* Add sources button */}
-              <UploadZone onUploadSuccess={handleDocumentAdded} onToast={addToast} isNotebookLMStyle={true} />
+              <UploadZone 
+                onUploadStart={handleUploadStart}
+                onUploadSuccess={handleDocumentAdded} 
+                onUploadError={handleUploadError}
+                onToast={addToast} 
+                isNotebookLMStyle={true} 
+              />
               
               {/* Search bar functional container */}
               <div className="bg-[#f0f4f9] rounded-[20px] p-2 mt-2 flex flex-col gap-2 relative">
@@ -442,7 +461,7 @@ export default function NotebookPage() {
 
             {/* Document List */}
             <div className="flex-1 overflow-y-auto px-2 pb-4">
-              {notebookDocs.length === 0 ? (
+              {notebookDocs.length === 0 && uploadingDocs.length === 0 ? (
                 <div className="text-center py-10 px-4">
                   <p className="text-[13px] text-zinc-500">No sources added yet. Click above to add documents to your notebook.</p>
                 </div>

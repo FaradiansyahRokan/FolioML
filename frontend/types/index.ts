@@ -23,6 +23,7 @@ export interface Document {
   created_at: string;
   source_url?: string;
   content?: string;
+  isUploading?: boolean;
 }
 
 export interface UploadResponse {

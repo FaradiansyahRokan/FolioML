@@ -115,6 +115,27 @@ export default function DocumentList({ documents, selectedDocs, onToggleSelect, 
       {/* List */}
       <ul className="flex flex-col">
         {filteredDocs.map((doc) => {
+          if (doc.isUploading) {
+            return (
+              <li
+                key={doc.id}
+                className="group relative flex items-center justify-between gap-3 px-3 py-2.5 bg-zinc-50/50 cursor-default"
+              >
+                <div className="flex items-center gap-3 overflow-hidden opacity-60">
+                  <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-zinc-100 border border-zinc-200/60 flex items-center justify-center">
+                    <Loader2 className="w-4 h-4 text-zinc-400 animate-spin" />
+                  </div>
+                  <span className="text-[13px] font-normal text-zinc-500 truncate italic">
+                    {doc.name}
+                  </span>
+                </div>
+                <div className="flex items-center text-[11px] text-zinc-400 font-medium">
+                  Uploading...
+                </div>
+              </li>
+            );
+          }
+
           const isSelected = selectedDocs.has(doc.id);
           return (
             <li
