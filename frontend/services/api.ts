@@ -2,11 +2,20 @@ import { ChatResponse, Document, UploadResponse, SourceCitation } from "@/types"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
+async function apiFetch(input: RequestInfo | URL, init?: RequestInit) {
+  const customInit = { ...init };
+  customInit.headers = {
+    ...customInit.headers,
+    "ngrok-skip-browser-warning": "true"
+  };
+  return fetch(input, customInit);
+}
+
 export async function uploadDocument(file: File): Promise<UploadResponse> {
   const formData = new FormData();
   formData.append("file", file);
 
-  const res = await fetch(`${API_BASE}/upload`, {
+  const res = await apiFetch(`${API_BASE}/upload`, {
     method: "POST",
     body: formData,
   });
@@ -23,7 +32,7 @@ export async function uploadImage(file: File): Promise<UploadResponse> {
   const formData = new FormData();
   formData.append("file", file);
 
-  const res = await fetch(`${API_BASE}/upload/image`, {
+  const res = await apiFetch(`${API_BASE}/upload/image`, {
     method: "POST",
     body: formData,
   });
@@ -37,7 +46,7 @@ export async function uploadImage(file: File): Promise<UploadResponse> {
 }
 
 export async function generateTTS(text: string): Promise<Blob> {
-  const res = await fetch(`${API_BASE}/tts`, {
+  const res = await apiFetch(`${API_BASE}/tts`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text }),
@@ -51,7 +60,7 @@ export async function sendChatMessage(
   history?: { role: string; content: string }[],
   useWebFallback: boolean = false
 ): Promise<ChatResponse> {
-  const res = await fetch(`${API_BASE}/chat`, {
+  const res = await apiFetch(`${API_BASE}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question, top_k: 25, history, use_web_fallback: useWebFallback }),
@@ -76,7 +85,7 @@ export async function streamChatMessage(
   onDone: () => void,
   onError: (error: string) => void
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/chat/stream`, {
+  const res = await apiFetch(`${API_BASE}/chat/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question, top_k: 25, history, document_ids: documentIds?.length ? documentIds : undefined, use_web_fallback: useWebFallback, context_text: contextText }),
@@ -130,20 +139,20 @@ export async function streamChatMessage(
 }
 
 export async function listDocuments(): Promise<Document[]> {
-  const res = await fetch(`${API_BASE}/documents`);
+  const res = await apiFetch(`${API_BASE}/documents`);
   if (!res.ok) throw new Error("Failed to fetch documents");
   const data = await res.json();
   return data.documents;
 }
 
 export async function getDocument(documentId: number): Promise<{ document: Document }> {
-  const res = await fetch(`${API_BASE}/documents/${documentId}`);
+  const res = await apiFetch(`${API_BASE}/documents/${documentId}`);
   if (!res.ok) throw new Error("Failed to fetch document");
   return res.json();
 }
 
 export async function deleteDocument(documentId: number): Promise<void> {
-  const res = await fetch(`${API_BASE}/documents/${documentId}`, {
+  const res = await apiFetch(`${API_BASE}/documents/${documentId}`, {
     method: "DELETE",
   });
   if (!res.ok) throw new Error("Failed to delete document");
@@ -157,7 +166,7 @@ export async function streamInsight(
   onDone: () => void,
   onError: (error: string) => void
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/insights/generate`, {
+  const res = await apiFetch(`${API_BASE}/insights/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ 
@@ -213,7 +222,7 @@ export async function streamInsight(
 
 // ── URL Ingestion ──────────────────────────────────
 export async function ingestUrl(url: string, title?: string, snippet?: string): Promise<UploadResponse> {
-  const res = await fetch(`${API_BASE}/ingest/url`, {
+  const res = await apiFetch(`${API_BASE}/ingest/url`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url, title, snippet }),
@@ -235,7 +244,7 @@ export interface WebSearchPreviewResult {
 }
 
 export async function searchWebPreview(query: string): Promise<{ results: WebSearchPreviewResult[]; query: string }> {
-  const res = await fetch(`${API_BASE}/search/preview?query=${encodeURIComponent(query)}`);
+  const res = await apiFetch(`${API_BASE}/search/preview?query=${encodeURIComponent(query)}`);
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: "Search failed" }));
     throw new Error(error.detail || "Search failed");
@@ -244,7 +253,7 @@ export async function searchWebPreview(query: string): Promise<{ results: WebSea
 }
 
 export async function ingestWebSearch(query: string): Promise<UploadResponse> {
-  const res = await fetch(`${API_BASE}/ingest/web-search`, {
+  const res = await apiFetch(`${API_BASE}/ingest/web-search`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query }),
@@ -266,7 +275,7 @@ export interface AgentInfo {
 }
 
 export async function listAgents(): Promise<AgentInfo[]> {
-  const res = await fetch(`${API_BASE}/agents/list`);
+  const res = await apiFetch(`${API_BASE}/agents/list`);
   if (!res.ok) throw new Error("Failed to fetch agents");
   const data = await res.json();
   return data.agents;
@@ -280,7 +289,7 @@ export async function streamAgent(
   onDone: () => void,
   onError: (error: string) => void
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/agents/run`, {
+  const res = await apiFetch(`${API_BASE}/agents/run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -343,7 +352,7 @@ export async function fastResearch(
   query: string,
   maxResults: number = 5
 ): Promise<ChatResponse> {
-  const res = await fetch(`${API_BASE}/research`, {
+  const res = await apiFetch(`${API_BASE}/research`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query, max_results: maxResults }),
@@ -368,7 +377,7 @@ export async function streamFastResearch(
   onDone: () => void,
   onError: (error: string) => void
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/research/stream`, {
+  const res = await apiFetch(`${API_BASE}/research/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query, max_results: maxResults }),
