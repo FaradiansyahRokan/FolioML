@@ -19,6 +19,33 @@ export async function uploadDocument(file: File): Promise<UploadResponse> {
   return res.json();
 }
 
+export async function uploadImage(file: File): Promise<UploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${API_BASE}/upload/image`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Image upload failed" }));
+    throw new Error(error.detail || "Image upload failed");
+  }
+
+  return res.json();
+}
+
+export async function generateTTS(text: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/tts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) throw new Error("Audio generation failed");
+  return res.blob();
+}
+
 export async function sendChatMessage(
   question: string,
   history?: { role: string; content: string }[],
@@ -43,6 +70,7 @@ export async function streamChatMessage(
   history: { role: string; content: string }[] | undefined,
   documentIds: number[] | undefined,
   useWebFallback: boolean,
+  contextText: string | undefined,
   onToken: (token: string) => void,
   onSources: (sources: SourceCitation[]) => void,
   onDone: () => void,
@@ -51,7 +79,7 @@ export async function streamChatMessage(
   const res = await fetch(`${API_BASE}/chat/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, top_k: 25, history, document_ids: documentIds?.length ? documentIds : undefined, use_web_fallback: useWebFallback }),
+    body: JSON.stringify({ question, top_k: 25, history, document_ids: documentIds?.length ? documentIds : undefined, use_web_fallback: useWebFallback, context_text: contextText }),
   });
 
   if (!res.ok) {
@@ -124,6 +152,7 @@ export async function deleteDocument(documentId: number): Promise<void> {
 export async function streamInsight(
   type: string,
   documentIds: number[] | undefined,
+  query: string | undefined,
   onToken: (token: string) => void,
   onDone: () => void,
   onError: (error: string) => void
@@ -131,7 +160,11 @@ export async function streamInsight(
   const res = await fetch(`${API_BASE}/insights/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ type, document_ids: documentIds?.length ? documentIds : undefined }),
+    body: JSON.stringify({ 
+      type, 
+      document_ids: documentIds?.length ? documentIds : undefined,
+      query: query || undefined 
+    }),
   });
 
   if (!res.ok) {
@@ -291,6 +324,93 @@ export async function streamAgent(
     }
   }
 
+  if (buffer.trim()) {
+    try {
+      const data = JSON.parse(buffer);
+      if (data.type === "done") onDone();
+    } catch {
+      // ignore
+    }
+  }
+}
+
+// ── Fast Research (Web Sources Only) ──────────────────────────────────
+/**
+ * Fast research from trusted web sources only (Wikipedia, News, Academic, etc).
+ * No document search, just web research.
+ */
+export async function fastResearch(
+  query: string,
+  maxResults: number = 5
+): Promise<ChatResponse> {
+  const res = await fetch(`${API_BASE}/research`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, max_results: maxResults }),
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Research failed" }));
+    throw new Error(error.detail || "Research failed");
+  }
+
+  return res.json();
+}
+
+/**
+ * Streaming fast research from trusted web sources.
+ */
+export async function streamFastResearch(
+  query: string,
+  maxResults: number = 5,
+  onToken: (token: string) => void,
+  onSources: (sources: SourceCitation[]) => void,
+  onDone: () => void,
+  onError: (error: string) => void
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/research/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, max_results: maxResults }),
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Research stream failed" }));
+    throw new Error(error.detail || "Research request failed");
+  }
+
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop()!;
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const data = JSON.parse(line);
+        if (data.type === "token") {
+          onToken(data.content);
+        } else if (data.type === "sources") {
+          onSources(data.sources || []);
+        } else if (data.type === "error") {
+          onError(data.message);
+        } else if (data.type === "done") {
+          onDone();
+        }
+      } catch {
+        // skip malformed lines
+      }
+    }
+  }
+
+  // Process any remaining buffer
   if (buffer.trim()) {
     try {
       const data = JSON.parse(buffer);

@@ -245,7 +245,7 @@ export default function NotebookPage() {
     const hist = (notebook.messages || []).filter((m) => !m.isLoading).slice(-10).map((m) => ({ role: m.role, content: m.content }));
     let c = "";
     try {
-      await streamChatMessage(q, hist, notebook.documentIds, useWebFallback,
+      await streamChatMessage(q, hist, Array.from(selectedDocIds), useWebFallback, undefined,
         (t) => { c += t; const cc = c; updateMessages((p) => p.map((m) => m.id === aid ? { ...m, content: cc, isLoading: false, isStreaming: true } : m)); },
         (src) => { updateMessages((p) => p.map((m) => m.id === aid ? { ...m, sources: src } : m)); },
         () => { updateMessages((p) => p.map((m) => m.id === aid ? { ...m, isStreaming: false } : m)); },
@@ -567,11 +567,11 @@ export default function NotebookPage() {
               />
               <div className="flex items-center gap-3 self-end mb-2 mr-1">
                 <span className="text-[12px] font-medium text-zinc-400 select-none">
-                  {notebookDocs.length} source{notebookDocs.length !== 1 ? 's' : ''}
+                  {selectedDocIds.size} source{selectedDocIds.size !== 1 ? 's' : ''}
                 </span>
                 <button
                   onClick={() => handleSend()}
-                  disabled={!input.trim() || loading || notebookDocs.length === 0}
+                  disabled={!input.trim() || loading || selectedDocIds.size === 0}
                   className="h-10 w-10 rounded-full bg-zinc-200 text-zinc-600 hover:bg-zinc-300 disabled:bg-zinc-100 disabled:text-zinc-300 flex items-center justify-center transition-colors"
                 >
                   {loading

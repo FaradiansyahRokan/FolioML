@@ -1,10 +1,10 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
-import { uploadDocument } from "@/services/api";
+import { uploadDocument, uploadImage } from "@/services/api";
 import { Document } from "@/types";
 import WebSearchModal from "./WebSearchModal";
-import { Plus, Globe, Loader2, FileUp } from "lucide-react";
+import { Plus, Globe, Loader2, FileUp, Image as ImageIcon } from "lucide-react";
 
 interface Props {
   onUploadStart?: (tempId: number, name: string) => void;
@@ -14,7 +14,7 @@ interface Props {
   isNotebookLMStyle?: boolean;
 }
 
-const ACCEPTED = ".pdf,.txt,.docx,.md,.csv";
+const ACCEPTED = ".pdf,.txt,.docx,.md,.csv,image/*";
 
 export default function UploadZone({ onUploadStart, onUploadSuccess, onUploadError, onToast, isNotebookLMStyle }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -28,7 +28,9 @@ export default function UploadZone({ onUploadStart, onUploadSuccess, onUploadErr
       const tempId = -Math.floor(Math.random() * 1000000);
       if (onUploadStart) onUploadStart(tempId, file.name);
       
-      uploadDocument(file)
+      const uploadPromise = file.type.startsWith("image/") ? uploadImage(file) : uploadDocument(file);
+      
+      uploadPromise
         .then(result => {
           onUploadSuccess({ id: result.document_id, name: result.document_name, page_count: result.page_count, chunk_count: result.chunks_created, created_at: new Date().toISOString() }, tempId);
           onToast(`"${file.name}" added`, "success");

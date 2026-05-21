@@ -178,8 +178,8 @@ async def stream_answer(question: str, context_chunks: List[Dict], history: List
     else:
         raise ValueError(f"Unknown AI_PROVIDER: {AI_PROVIDER}")
 
-async def stream_llm_response(prompt: str, history: List[Dict] = None, system_prompt: str = SYSTEM_PROMPT) -> AsyncGenerator[str, None]:
-    """Stream an answer generically given a prompt, history, and custom system prompt."""
+async def stream_llm_response(prompt: str, history: List[Dict] = None, system_prompt: str = SYSTEM_PROMPT, model: str = None) -> AsyncGenerator[str, None]:
+    """Stream an answer generically given a prompt, history, custom system prompt, and optional model."""
     messages = [{"role": "system", "content": system_prompt}]
     if history:
         for msg in history[-10:]:
@@ -187,10 +187,10 @@ async def stream_llm_response(prompt: str, history: List[Dict] = None, system_pr
     messages.append({"role": "user", "content": prompt})
 
     if AI_PROVIDER == "openai":
-        async for token in _openai_stream(messages):
+        async for token in _openai_stream(messages, model):
             yield json.dumps({"type": "token", "content": token}) + "\n"
     elif AI_PROVIDER == "ollama":
-        async for token in _ollama_stream(messages):
+        async for token in _ollama_stream(messages, model):
             yield json.dumps({"type": "token", "content": token}) + "\n"
     else:
         yield json.dumps({"type": "error", "message": f"Unknown AI_PROVIDER: {AI_PROVIDER}"}) + "\n"
@@ -211,7 +211,7 @@ async def _openai_chat(messages: List[Dict]) -> str:
                 "model": OPENAI_CHAT_MODEL,
                 "messages": messages,
                 "temperature": 0.3,
-                "max_tokens": 2000,
+                "max_tokens": 8192,
             },
             timeout=60.0,
         )
@@ -231,7 +231,7 @@ async def _ollama_chat(messages: List[Dict]) -> str:
                 "stream": False,
                 "options": {
                     "temperature": 0.3,
-                    "num_predict": 2000,
+                    "num_predict": 8192,
                 },
             },
             timeout=120.0,
@@ -241,8 +241,9 @@ async def _ollama_chat(messages: List[Dict]) -> str:
         return data["message"]["content"]
 
 
-async def _openai_stream(messages: List[Dict]) -> AsyncGenerator[str, None]:
+async def _openai_stream(messages: List[Dict], model: str = None) -> AsyncGenerator[str, None]:
     """Stream from OpenAI Chat Completions API."""
+    actual_model = model if model else OPENAI_CHAT_MODEL
     async with httpx.AsyncClient() as client:
         async with client.stream(
             "POST",
@@ -252,10 +253,10 @@ async def _openai_stream(messages: List[Dict]) -> AsyncGenerator[str, None]:
                 "Content-Type": "application/json",
             },
             json={
-                "model": OPENAI_CHAT_MODEL,
+                "model": actual_model,
                 "messages": messages,
                 "temperature": 0.3,
-                "max_tokens": 2000,
+                "max_tokens": 8192,
                 "stream": True,
             },
             timeout=120.0,
@@ -273,19 +274,20 @@ async def _openai_stream(messages: List[Dict]) -> AsyncGenerator[str, None]:
                         continue
 
 
-async def _ollama_stream(messages: List[Dict]) -> AsyncGenerator[str, None]:
+async def _ollama_stream(messages: List[Dict], model: str = None) -> AsyncGenerator[str, None]:
     """Stream from Ollama Chat API."""
+    actual_model = model if model else OLLAMA_CHAT_MODEL
     async with httpx.AsyncClient() as client:
         async with client.stream(
             "POST",
             f"{OLLAMA_BASE_URL}/api/chat",
             json={
-                "model": OLLAMA_CHAT_MODEL,
+                "model": actual_model,
                 "messages": messages,
                 "stream": True,
                 "options": {
                     "temperature": 0.3,
-                    "num_predict": 2000,
+                    "num_predict": 8192,
                 },
             },
             timeout=120.0,

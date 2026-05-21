@@ -11,6 +11,8 @@ router = APIRouter(prefix="/api/insights", tags=["Insights"])
 class InsightRequest(BaseModel):
     type: str  # "study_guide", "podcast", "faq", "critique", "cross_reference"
     document_ids: Optional[List[int]] = None
+    query: Optional[str] = None
+
     
 PROMPTS = {
     "study_guide": """Buatlah sebuah Study Guide (Panduan Belajar) yang komprehensif berdasarkan dokumen berikut.
@@ -48,7 +50,17 @@ Buatlah laporan Cross-Reference Synthesis:
 3. **Unique Insights**: Informasi unik yang hanya ada di satu dokumen tapi sangat penting.
 4. **Overall Synthesis**: Kesimpulan akhir yang menggabungkan seluruh perspektif.
 
-Gunakan format Markdown yang rapi dan sebutkan nama dokumen saat merujuk informasi tertentu. JANGAN PERNAH MENGGUNAKAN EMOTE"""
+Gunakan format Markdown yang rapi dan sebutkan nama dokumen saat merujuk informasi tertentu. JANGAN PERNAH MENGGUNAKAN EMOTE""",
+
+    "flashcards": """Buatlah Flashcards pembelajaran (Tanya-Jawab) dari dokumen berikut.
+Ekstrak konsep-konsep kunci, fakta, dan definisi.
+Gunakan format Markdown ini SECARA KETAT untuk setiap flashcard:
+
+### Q: [Pertanyaan atau Konsep]
+### A: [Jawaban atau Penjelasan detail]
+---
+
+Buat sebanyak mungkin flashcard yang relevan (minimal 10 jika dokumen cukup panjang). JANGAN gunakan format lain."""
 }
 
 @router.post("/generate")
@@ -70,10 +82,11 @@ async def generate_insight(req: InsightRequest):
         context_text += f"--- Document: {chunk['document_name']} ---\n{chunk['content']}\n\n"
         
     system_prompt = "Kamu adalah AI Knowledge Analyst profesional. Lakukan tugas sesuai permintaan secara tepat dan akurat."
+    query_section = f"\n\n--- Instruksi Khusus Tambahan ---\n{req.query}" if req.query else ""
     user_message = f"""Berikut adalah dokumen/konteks yang perlu kamu analisis:
 
 {context_text}
-
+{query_section}
 =======================================
 PENTING - TUGAS UTAMA ANDA:
 =======================================

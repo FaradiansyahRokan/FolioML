@@ -17,8 +17,9 @@ export default function SourcesPanel({ sources }: Props) {
   if (!sources || sources.length === 0) return null;
 
   return (
-    <div className="mt-1 animate-fade-in">
+    <div className="mt-1 animate-fade-in" id="sources-panel-container">
       <button
+        id="sources-toggle-btn"
         onClick={() => setExpanded(!expanded)}
         className="group flex items-center gap-2 text-[11px] font-semibold text-zinc-400 hover:text-zinc-700 transition-colors duration-150"
       >
@@ -37,7 +38,8 @@ export default function SourcesPanel({ sources }: Props) {
             return (
               <div
                 key={i}
-                className="group/card rounded-xl border border-zinc-200 bg-white px-3.5 py-3 shadow-subtle hover:shadow-float transition-all duration-200"
+                id={`source-card-${i + 1}`}
+                className="group/card rounded-xl border border-zinc-200 bg-white px-3.5 py-3 shadow-subtle hover:shadow-float transition-all duration-200 scroll-mt-24"
               >
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2 min-w-0">

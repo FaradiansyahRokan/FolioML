@@ -7,6 +7,8 @@ from rag.vector_store import (
     add_document, store_chunks, get_all_documents, delete_document,
     update_document_chunk_count, get_document_stats, get_document
 )
+import base64
+import httpx
 
 router = APIRouter()
 
@@ -43,6 +45,72 @@ def search_preview(query: str = Query(..., min_length=1)) -> dict:
             "source_domain": domain,
         })
     return {"results": results, "query": query}
+
+
+@router.post("/upload/image")
+async def upload_image(file: UploadFile = File(...)):
+    """Upload an image, describe it using llava, and store the description as a document."""
+    file_bytes = await file.read()
+    if len(file_bytes) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+        
+    b64_image = base64.b64encode(file_bytes).decode('utf-8')
+    filename = file.filename or "image.png"
+    
+    # Call ollama llava
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post("http://localhost:11434/api/chat", json={
+                "model": "llava:latest",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "You are an expert OCR and image analyst. Please describe this image in extreme detail. If there is any text, data, or charts in the image, transcribe and explain them perfectly.",
+                        "images": [b64_image]
+                    }
+                ],
+                "stream": False
+            }, timeout=120.0)
+            resp.raise_for_status()
+            data = resp.json()
+            description = data["message"]["content"]
+    except Exception as e:
+        print(f"[UPLOAD ERROR] Vision model failed: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Vision model (llava) failed: {str(e)}")
+        
+    text = f"Image filename: {filename}\nImage Description and Contents:\n{description}"
+    
+    try:
+        chunks = chunk_text(text, chunk_size=800, overlap=200)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Failed to chunk image text: {str(e)}")
+        
+    try:
+        doc_id = add_document(filename, "image", page_count=1)
+        texts_to_embed = [c["text"] for c in chunks]
+        embeddings = get_embeddings_batch(texts_to_embed)
+        
+        chunks_with_embeddings = []
+        for i, chunk in enumerate(chunks):
+            chunks_with_embeddings.append({
+                "text": chunk["text"],
+                "embedding": embeddings[i],
+                "metadata": chunk["metadata"]
+            })
+            
+        store_chunks(doc_id, chunks_with_embeddings)
+        update_document_chunk_count(doc_id, len(chunks))
+        
+        return {
+            "message": "Image processed and stored successfully",
+            "document_id": doc_id,
+            "document_name": filename,
+            "chunks_created": len(chunks),
+            "page_count": 1
+        }
+    except Exception as e:
+        print(f"[UPLOAD ERROR] DB storage failed: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
 @router.post("/upload")

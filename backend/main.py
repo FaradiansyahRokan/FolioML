@@ -5,6 +5,7 @@ from routes.chat import router as chat_router
 from routes.insights import router as insights_router
 from routes.ingest import router as ingest_router
 from routes.agents import router as agents_router
+from routes.audio import router as audio_router
 
 app = FastAPI(
     title="FolioML - AI Knowledge OS",
@@ -15,7 +16,7 @@ app = FastAPI(
 # CORS — allow Next.js frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -27,6 +28,7 @@ app.include_router(chat_router, prefix="/api", tags=["Chat"])
 app.include_router(insights_router)
 app.include_router(ingest_router, prefix="/api", tags=["Ingestion"])
 app.include_router(agents_router)
+app.include_router(audio_router, prefix="/api", tags=["Audio"])
 
 
 from database.connection import init_db
