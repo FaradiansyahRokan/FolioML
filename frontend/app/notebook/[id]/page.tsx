@@ -282,6 +282,7 @@ export default function NotebookPage() {
     : combinedDocs;
 
   if (!loaded) return <div className="h-screen flex items-center justify-center bg-[#f0f4f9]"><Loader2 className="w-6 h-6 animate-spin text-zinc-400" /></div>;
+  if (!notebook) return null;
 
   const messages = notebook.messages || [];
 
