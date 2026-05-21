@@ -21,50 +21,37 @@ class URLIngestRequest(BaseModel):
 
 
 def _html_to_text(html: str) -> str:
-    """Convert HTML to clean text with some structure preserved."""
-    import re
-    
-    # Remove script and style elements
-    html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
-    html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL | re.IGNORECASE)
-    html = re.sub(r'<nav[^>]*>.*?</nav>', '', html, flags=re.DOTALL | re.IGNORECASE)
-    html = re.sub(r'<footer[^>]*>.*?</footer>', '', html, flags=re.DOTALL | re.IGNORECASE)
-    html = re.sub(r'<header[^>]*>.*?</header>', '', html, flags=re.DOTALL | re.IGNORECASE)
-    
-    # Convert headings to markdown
-    for i in range(1, 7):
-        html = re.sub(rf'<h{i}[^>]*>(.*?)</h{i}>', rf'\n{"#" * i} \1\n', html, flags=re.DOTALL | re.IGNORECASE)
-    
-    # Convert paragraphs and divs to newlines
-    html = re.sub(r'<br\s*/?>', '\n', html, flags=re.IGNORECASE)
-    html = re.sub(r'<p[^>]*>', '\n\n', html, flags=re.IGNORECASE)
-    html = re.sub(r'</p>', '', html, flags=re.IGNORECASE)
-    html = re.sub(r'<li[^>]*>', '\n- ', html, flags=re.IGNORECASE)
-    
-    # Convert bold and italic
-    html = re.sub(r'<(b|strong)[^>]*>(.*?)</\1>', r'**\2**', html, flags=re.DOTALL | re.IGNORECASE)
-    html = re.sub(r'<(i|em)[^>]*>(.*?)</\1>', r'*\2*', html, flags=re.DOTALL | re.IGNORECASE)
-    
-    # Convert code blocks
-    html = re.sub(r'<code[^>]*>(.*?)</code>', r'`\1`', html, flags=re.DOTALL | re.IGNORECASE)
-    html = re.sub(r'<pre[^>]*>(.*?)</pre>', r'\n```\n\1\n```\n', html, flags=re.DOTALL | re.IGNORECASE)
-    
-    # Remove all remaining tags
-    html = re.sub(r'<[^>]+>', '', html)
-    
-    # Decode HTML entities
-    html = html.replace('&nbsp;', ' ')
-    html = html.replace('&amp;', '&')
-    html = html.replace('&lt;', '<')
-    html = html.replace('&gt;', '>')
-    html = html.replace('&quot;', '"')
-    html = html.replace('&#39;', "'")
-    
-    # Clean up whitespace
-    html = re.sub(r'\n{3,}', '\n\n', html)
-    html = re.sub(r' {2,}', ' ', html)
-    
-    return html.strip()
+    """Convert HTML to clean text using Trafilatura, fallback to BeautifulSoup."""
+    try:
+        import trafilatura
+        # Trafilatura is the gold standard for extracting main article content
+        extracted = trafilatura.extract(html, include_links=True, include_formatting=True)
+        if extracted:
+            return extracted
+    except ImportError:
+        pass
+
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        # Remove script, style, nav, footer, header elements
+        for element in soup(["script", "style", "nav", "footer", "header", "aside", "noscript"]):
+            element.decompose()
+            
+        # Get text with newlines
+        text = soup.get_text(separator='\n')
+        
+        # Clean up whitespace (remove empty lines and extra spaces)
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        return '\n\n'.join(lines)
+    except ImportError:
+        # Fallback to regex if BS4 is missing
+        import re
+        html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
+        html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL | re.IGNORECASE)
+        html = re.sub(r'<[^>]+>', ' ', html)
+        return re.sub(r'\s{2,}', ' ', html).strip()
 
 
 def _extract_title(html: str) -> str:
