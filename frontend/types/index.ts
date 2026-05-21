@@ -4,6 +4,9 @@ export interface SourceCitation {
   similarity: number;
   chunk_index: number;
   page?: number;
+  section?: string;
+  chunk_type?: string;
+  hybrid_score?: number;
 }
 
 export interface ChatMessage {
