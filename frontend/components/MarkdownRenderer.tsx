@@ -37,11 +37,11 @@ export default function MarkdownRenderer({ content, isStreaming }: Props) {
                       toggleBtn.click();
                       // Wait a beat for the DOM to render the expanded panel
                       setTimeout(() => {
-                        el = document.getElementById(`source-card-${id}`);
-                        if (el) {
-                          el.scrollIntoView({behavior: 'smooth', block: 'center'});
-                          el.classList.add('ring-2', 'ring-blue-500', 'bg-blue-50');
-                          setTimeout(() => el.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50'), 2000);
+                        const foundEl = document.getElementById(`source-card-${id}`);
+                        if (foundEl) {
+                          foundEl.scrollIntoView({behavior: 'smooth', block: 'center'});
+                          foundEl.classList.add('ring-2', 'ring-blue-500', 'bg-blue-50');
+                          setTimeout(() => foundEl.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50'), 2000);
                         }
                       }, 150);
                     } else if (el) {
