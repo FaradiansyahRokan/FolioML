@@ -91,8 +91,8 @@ export const DocumentExporter = {
     
     for (const block of blocks) {
       if (!block.trim()) continue;
-      const qMatch = block.match(/### Q:\s*(.+?)(?=\n### A:|$)/s);
-      const aMatch = block.match(/### A:\s*(.+?)$/s);
+      const qMatch = block.match(/### Q:\s*([\s\S]+?)(?=\n### A:|$)/);
+      const aMatch = block.match(/### A:\s*([\s\S]+?)$/);
       
       if (qMatch && aMatch) {
         cards.push({
