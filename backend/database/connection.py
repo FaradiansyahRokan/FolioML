@@ -7,6 +7,11 @@ DB_PATH = os.getenv("DATABASE_PATH", os.path.join(os.path.dirname(__file__), "ra
 
 def get_connection():
     """Get a SQLite connection."""
+    # Ensure the parent directory of the database file exists
+    db_dir = os.path.dirname(os.path.abspath(DB_PATH))
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
+        
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
