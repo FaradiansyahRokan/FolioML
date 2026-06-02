@@ -3,7 +3,7 @@ import json
 import os
 from contextlib import contextmanager
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "rag_database.db")
+DB_PATH = os.getenv("DATABASE_PATH", os.path.join(os.path.dirname(__file__), "rag_database.db"))
 
 def get_connection():
     """Get a SQLite connection."""

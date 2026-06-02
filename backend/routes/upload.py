@@ -59,8 +59,9 @@ async def upload_image(file: UploadFile = File(...)):
     
     # Call ollama llava
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post("http://localhost:11434/api/chat", json={
+        OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(f"{OLLAMA_BASE_URL}/api/chat", json={
                 "model": "llava:latest",
                 "messages": [
                     {

@@ -115,19 +115,33 @@ async def ingest_url(req: URLIngestRequest):
     # Fetch the page
     html = ""
     fetch_failed = False
+    
     try:
-        # Try to scrape using a standard browser User-Agent
-        async with httpx.AsyncClient(follow_redirects=True, verify=False, timeout=15.0) as client:
-            response = await client.get(url, headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            })
-            response.raise_for_status()
-            html = response.text
-            if not html.strip():
-                fetch_failed = True
+        import trafilatura
+        downloaded = trafilatura.fetch_url(url)
+        if downloaded:
+            html = downloaded
+        else:
+            fetch_failed = True
     except Exception as e:
         print(f"[Scrape Failed] {url} - Error: {e}")
         fetch_failed = True
+    
+    # Fallback to httpx if trafilatura fails
+    if fetch_failed:
+        fetch_failed = False
+        try:
+            async with httpx.AsyncClient(follow_redirects=True, verify=False, timeout=15.0) as client:
+                response = await client.get(url, headers={
+                    "User-Agent": "FolioML/1.0 (https://folioml.vercel.app; admin@folioml) based on httpx"
+                })
+                response.raise_for_status()
+                html = response.text
+                if not html.strip() or len(html) < 200:
+                    fetch_failed = True
+        except Exception as e:
+            print(f"[Scrape Fallback Failed] {url} - Error: {e}")
+            fetch_failed = True
     
     title = req.title or url
     text = ""
