@@ -3,7 +3,7 @@
 import { Document } from "@/types";
 import { deleteDocument } from "@/services/api";
 import { useState } from "react";
-import { FileText, FileSpreadsheet, File, Loader2, X, Search, ChevronDown, Globe } from "lucide-react";
+import { FileText, FileSpreadsheet, File, Loader2, X, Search, ChevronDown, Globe, Share2, Trash2 } from "lucide-react";
 
 interface Props {
   documents: Document[];
@@ -157,18 +157,19 @@ export default function DocumentList({ documents, selectedDocs, onToggleSelect, 
                 {onShare && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onShare(doc.id, doc.name); }}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors"
+                    className="p-1.5 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                     title="Share Document"
                   >
-                    <Globe className="w-3.5 h-3.5" />
+                    <Share2 className="w-3.5 h-3.5" />
                   </button>
                 )}
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDelete(doc.id, doc.name); }}
                   disabled={deletingId === doc.id}
-                  className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                  className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                  title="Delete Document"
                 >
-                  {deletingId === doc.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                  {deletingId === doc.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                 </button>
                 <div 
                   onClick={(e) => { e.stopPropagation(); onToggleSelect(doc.id); }}
