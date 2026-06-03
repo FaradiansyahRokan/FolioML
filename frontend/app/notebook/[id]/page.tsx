@@ -665,6 +665,7 @@ export default function NotebookPage() {
                 onToast={addToast}
                 onDocumentAdded={handleDocumentAdded}
                 isNotebookLMStyle={true}
+                notebookId={notebookId}
               />
             </div>
           </div>

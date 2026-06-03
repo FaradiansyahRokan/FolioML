@@ -18,6 +18,7 @@ interface Props {
   onToast: (message: string, type?: "success" | "error" | "info") => void;
   onDocumentAdded?: (doc: any) => void;
   isNotebookLMStyle?: boolean;
+  notebookId?: string;
 }
 
 const ALL_TOOLS = [
@@ -64,7 +65,9 @@ interface Artifact {
   status: 'loading' | 'done' | 'error';
 }
 
-export default function NotebookView({ hasDocuments, selectedDocs, onToast, onDocumentAdded }: Props) {
+export default function NotebookView({ hasDocuments, selectedDocs, onToast, onDocumentAdded, notebookId }: Props) {
+  const storageKey = notebookId ? `folioml_artifacts_${notebookId}` : "folioml_artifacts";
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeTab, setActiveTab] = useState<"insights" | "agents" | "url">("insights");
   
   // Artifacts State (Persisted in localStorage)
@@ -97,26 +100,23 @@ export default function NotebookView({ hasDocuments, selectedDocs, onToast, onDo
   const [urlInput, setUrlInput] = useState("");
   const [isIngesting, setIsIngesting] = useState(false);
 
-  // Load artifacts on mount
+  // Load artifacts on mount — keyed by notebookId
   useEffect(() => {
-    const saved = localStorage.getItem("folioml_artifacts");
+    const saved = localStorage.getItem(storageKey);
     if (saved) {
       try { setArtifacts(JSON.parse(saved)); } catch (e) {}
+    } else {
+      setArtifacts([]); // clear artifacts when switching notebooks
     }
     setIsLoaded(true);
-    
-    // Global click listener for dropdowns
-    const handleClickOutside = () => setActiveDropdownId(null);
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, []);
+  }, [storageKey]);
 
   // Save artifacts on change
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem("folioml_artifacts", JSON.stringify(artifacts));
+      localStorage.setItem(storageKey, JSON.stringify(artifacts));
     }
-  }, [artifacts, isLoaded]);
+  }, [artifacts, isLoaded, storageKey]);
 
   const handleGenerate = async () => {
     if (!hasDocuments || !selectedToolPrompt) { onToast("Upload documents first.", "error"); return; }
@@ -365,27 +365,26 @@ export default function NotebookView({ hasDocuments, selectedDocs, onToast, onDo
       if (viewingArtifact.toolId === "graph") {
         let graphData = null;
         try {
-          // If streaming, the JSON might be incomplete, but ReactFlow handles empty/partial arrays gracefully if parsed correctly.
-          // To avoid crash on partial JSON, we only parse if not loading, or wrap in try/catch.
-          if (viewingArtifact.content.trim().startsWith("{") && viewingArtifact.content.trim().endsWith("}")) {
-            graphData = JSON.parse(viewingArtifact.content);
+          // Strip markdown code fences that LLM sometimes adds (```json ... ```)
+          let raw = viewingArtifact.content.trim();
+          raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+          if (raw.startsWith("{") && raw.endsWith("}")) {
+            graphData = JSON.parse(raw);
           } else {
-            // For partial JSON during streaming, we attempt a naive extraction
-            const nodesMatch = viewingArtifact.content.match(/"nodes"\s*:\s*(\[[\s\S]*?\])/);
-            const edgesMatch = viewingArtifact.content.match(/"edges"\s*:\s*(\[[\s\S]*?\])/);
+            // Partial JSON during streaming — extract nodes/edges arrays
+            const nodesMatch = raw.match(/"nodes"\s*:\s*(\[[\s\S]*?\])/);
+            const edgesMatch = raw.match(/"edges"\s*:\s*(\[[\s\S]*?\])/);
             if (nodesMatch || edgesMatch) {
               graphData = {
-                nodes: nodesMatch ? JSON.parse(nodesMatch[1].replace(/,\s*\]$/, ']')) : [],
-                edges: edgesMatch ? JSON.parse(edgesMatch[1].replace(/,\s*\]$/, ']')) : []
+                nodes: nodesMatch ? JSON.parse(nodesMatch[1].replace(/,\s*$/, "") + "]") : [],
+                edges: edgesMatch ? JSON.parse(edgesMatch[1].replace(/,\s*$/, "") + "]") : [],
               };
             }
           }
-        } catch (e) {
-          // Silent catch for partial streaming JSON
-        }
-        
+        } catch (e) { /* silent – partial JSON during stream */ }
+
         return (
-          <div className="flex-1 w-full p-4 relative bg-[#f8fafc] rounded-xl overflow-hidden" style={{ minHeight: 0 }}>
+          <div className="flex-1 w-full relative bg-[#f8fafc] rounded-xl overflow-hidden" style={{ minHeight: 0 }}>
             {graphData ? (
               <KnowledgeGraph data={graphData} />
             ) : (
@@ -414,7 +413,11 @@ export default function NotebookView({ hasDocuments, selectedDocs, onToast, onDo
       .replace(/\n/gim, '<br>');
 
     return (
-      <div className="flex flex-col h-full animate-fade-in bg-white fixed inset-0 z-50 p-4">
+      <div className={`flex flex-col animate-fade-in bg-white z-50 ${
+        isFullscreen
+          ? "fixed inset-0 p-4"
+          : "absolute inset-0 p-4"
+      }`}>
         <div className="flex items-center justify-between mb-4 pb-4 border-b border-zinc-100">
           <div className="flex items-center gap-3 w-1/2">
             <button onClick={() => setViewingArtifact(null)} className="w-8 h-8 rounded-full hover:bg-zinc-100 flex items-center justify-center text-zinc-500 transition-colors shrink-0">
@@ -445,6 +448,12 @@ export default function NotebookView({ hasDocuments, selectedDocs, onToast, onDo
           </div>
           
           <div className="flex items-center gap-1">
+             <button onClick={() => setIsFullscreen(f => !f)} className="p-2 rounded-lg hover:bg-zinc-100 text-zinc-500 transition-colors" title={isFullscreen ? "Minimize" : "Fullscreen"}>
+               {isFullscreen
+                 ? <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25M9 15H4.5M9 15v4.5M9 15l-5.25 5.25" /></svg>
+                 : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
+               }
+             </button>
              <button onClick={() => { navigator.clipboard.writeText(viewingArtifact.content); onToast("Copied!", "success"); }} className="p-2 rounded-lg hover:bg-zinc-100 text-zinc-500 transition-colors" title="Copy Text">
                <Copy className="w-4 h-4" />
              </button>
@@ -599,66 +608,85 @@ export default function NotebookView({ hasDocuments, selectedDocs, onToast, onDo
       )}
 
       {/* Artifacts List */}
-      <div className="flex-1 overflow-y-auto px-4 pb-10 relative">
+      <div className="flex-1 overflow-y-auto px-4 pb-10">
         {artifacts.length === 0 && generatingToolIds.length === 0 ? (
           <div className="h-32 flex flex-col items-center justify-center text-zinc-400 text-[13px]">
             No artifacts yet. Select a tool above to generate one.
           </div>
         ) : (
           <div className="flex flex-col gap-1">
-            {/* Artifacts (Including loading ones) */}
             {artifacts.map(artifact => {
               const tool = ALL_TOOLS.find(t => t.id === artifact.toolId) || ALL_TOOLS[0];
               const isLoading = artifact.status === 'loading';
-              
+              const isDropdownOpen = activeDropdownId === artifact.id;
+
               return (
-                <div key={artifact.id} onClick={() => !isLoading && openViewer(artifact)} className={`flex items-center gap-4 p-3 rounded-xl transition-colors group ${isLoading ? 'cursor-default' : 'hover:bg-zinc-50 cursor-pointer'}`}>
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center border border-zinc-100 shadow-sm ${tool.bg} relative`}>
+                <div
+                  key={artifact.id}
+                  onClick={() => { if (!isLoading && !isDropdownOpen) { setActiveDropdownId(null); openViewer(artifact); } }}
+                  className={`flex items-center gap-3 p-3 rounded-xl transition-colors group ${isLoading ? 'cursor-default' : 'hover:bg-zinc-50 cursor-pointer'}`}
+                >
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center border border-zinc-100 shadow-sm ${tool.bg} flex-shrink-0`}>
                     {isLoading ? <Loader2 className="w-4 h-4 animate-spin text-zinc-600" /> : tool.icon}
                   </div>
-                  <div className={`flex-1 min-w-0 transition-all duration-500 ${isLoading ? 'blur-[1px] opacity-70 animate-pulse' : ''}`}>
+
+                  <div className={`flex-1 min-w-0 ${isLoading ? 'opacity-60 animate-pulse' : ''}`}>
                     {renamingArtifactId === artifact.id ? (
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         autoFocus
-                        value={listEditedTitle} 
+                        value={listEditedTitle}
                         onChange={e => setListEditedTitle(e.target.value)}
-                        onBlur={() => {
-                          setArtifacts(prev => prev.map(a => a.id === artifact.id ? { ...a, title: listEditedTitle.trim() || a.title } : a));
-                          setRenamingArtifactId(null);
-                        }}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
-                            setArtifacts(prev => prev.map(a => a.id === artifact.id ? { ...a, title: listEditedTitle.trim() || a.title } : a));
-                            setRenamingArtifactId(null);
-                          }
-                        }}
+                        onBlur={() => { setArtifacts(prev => prev.map(a => a.id === artifact.id ? { ...a, title: listEditedTitle.trim() || a.title } : a)); setRenamingArtifactId(null); }}
+                        onKeyDown={e => { if (e.key === 'Enter') { setArtifacts(prev => prev.map(a => a.id === artifact.id ? { ...a, title: listEditedTitle.trim() || a.title } : a)); setRenamingArtifactId(null); } }}
                         onClick={e => e.stopPropagation()}
-                        className="text-[14.5px] font-medium text-zinc-900 bg-white border border-zinc-200 rounded px-1.5 py-0.5 outline-none focus:border-zinc-400 w-full mb-0.5"
+                        className="text-[13.5px] font-medium text-zinc-900 bg-white border border-zinc-300 rounded px-1.5 py-0.5 outline-none w-full"
                       />
                     ) : (
-                      <h4 className="text-[14.5px] font-medium text-zinc-900 truncate">{artifact.title}</h4>
+                      <h4 className="text-[13.5px] font-medium text-zinc-900 truncate">{artifact.title}</h4>
                     )}
-                    <p className="text-[12px] text-zinc-500 mt-0.5">
-                      {isLoading ? 'Generating insight...' : `${artifact.sourcesCount} sources • ${formatTimeAgo(artifact.createdAt)}`}
+                    <p className="text-[11px] text-zinc-400 mt-0.5">
+                      {isLoading ? 'Generating...' : `${artifact.sourcesCount} src · ${formatTimeAgo(artifact.createdAt)}`}
                     </p>
                   </div>
+
                   {!isLoading && (
-                  <div className={`relative transition-opacity ${activeDropdownId === artifact.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                     <button onClick={(e) => { e.stopPropagation(); setActiveDropdownId(activeDropdownId === artifact.id ? null : artifact.id); }} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-zinc-200 text-zinc-500">
-                       <MoreVertical className="w-4 h-4" />
-                     </button>
-                     
-                     {activeDropdownId === artifact.id && (
-                       <div className="absolute right-0 top-10 w-40 bg-white border border-zinc-200 rounded-xl shadow-xl z-20 py-1 animate-scale-in" onClick={e => e.stopPropagation()}>
-                         <button onClick={(e) => { e.stopPropagation(); setActiveDropdownId(null); setRenamingArtifactId(artifact.id); setListEditedTitle(artifact.title); }} className="w-full text-left px-4 py-2 text-[13px] font-medium hover:bg-zinc-50 text-zinc-700">Rename</button>
-                         <button onClick={(e) => { e.stopPropagation(); setActiveDropdownId(null); handleExport(artifact, 'pdf'); }} className="w-full text-left px-4 py-2 text-[13px] font-medium hover:bg-zinc-50 text-zinc-700">Export PDF</button>
-                         <button onClick={(e) => { e.stopPropagation(); setActiveDropdownId(null); handleExport(artifact, 'docx'); }} className="w-full text-left px-4 py-2 text-[13px] font-medium hover:bg-zinc-50 text-zinc-700">Export DOCX</button>
-                         <div className="h-px bg-zinc-100 my-1"></div>
-                         <button onClick={(e) => { e.stopPropagation(); setActiveDropdownId(null); deleteArtifact(artifact.id, e); }} className="w-full text-left px-4 py-2 text-[13px] font-medium hover:bg-red-50 text-red-600">Delete</button>
-                       </div>
-                     )}
-                  </div>
+                    <div className="relative flex-shrink-0" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={e => { e.stopPropagation(); setActiveDropdownId(isDropdownOpen ? null : artifact.id); }}
+                        className={`w-7 h-7 flex items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700 transition-colors ${
+                          isDropdownOpen ? 'bg-zinc-200 text-zinc-700' : 'opacity-0 group-hover:opacity-100'
+                        }`}
+                      >
+                        <MoreVertical className="w-3.5 h-3.5" />
+                      </button>
+
+                      {isDropdownOpen && (
+                        <>
+                          {/* backdrop to close on outside click */}
+                          <div className="fixed inset-0 z-30" onClick={e => { e.stopPropagation(); setActiveDropdownId(null); }} />
+                          <div className="absolute right-0 top-8 w-40 bg-white border border-zinc-200 rounded-xl shadow-xl z-40 py-1">
+                            <button
+                              onClick={e => { e.stopPropagation(); setActiveDropdownId(null); setRenamingArtifactId(artifact.id); setListEditedTitle(artifact.title); }}
+                              className="w-full text-left px-3 py-2 text-[13px] font-medium hover:bg-zinc-50 text-zinc-700"
+                            >Rename</button>
+                            <button
+                              onClick={e => { e.stopPropagation(); setActiveDropdownId(null); handleExport(artifact, 'pdf'); }}
+                              className="w-full text-left px-3 py-2 text-[13px] font-medium hover:bg-zinc-50 text-zinc-700"
+                            >Export PDF</button>
+                            <button
+                              onClick={e => { e.stopPropagation(); setActiveDropdownId(null); handleExport(artifact, 'docx'); }}
+                              className="w-full text-left px-3 py-2 text-[13px] font-medium hover:bg-zinc-50 text-zinc-700"
+                            >Export DOCX</button>
+                            <div className="h-px bg-zinc-100 my-1" />
+                            <button
+                              onClick={e => { e.stopPropagation(); setActiveDropdownId(null); deleteArtifact(artifact.id, e); }}
+                              className="w-full text-left px-3 py-2 text-[13px] font-medium hover:bg-red-50 text-red-600"
+                            >Delete</button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
               );
