@@ -67,11 +67,8 @@ function KGNode({ data }: NodeProps) {
 
   return (
     <>
-      {/* Accept edges from all four sides */}
       <Handle type="target" position={Position.Left}   style={{ opacity: 0, width: 1, height: 1 }} />
-      <Handle type="target" position={Position.Top}    style={{ opacity: 0, width: 1, height: 1 }} />
       <Handle type="source" position={Position.Right}  style={{ opacity: 0, width: 1, height: 1 }} />
-      <Handle type="source" position={Position.Bottom} style={{ opacity: 0, width: 1, height: 1 }} />
 
       <div
         style={{
@@ -191,6 +188,8 @@ function buildLayout(rawNodes: GraphNode[], rawEdges: GraphEdge[]) {
     id: n.id,
     type: "kgNode",
     position: pos[n.id] ?? { x: 0, y: 0 },
+    width: 140,
+    height: 80,
     data: {
       label: n.label || n.id,
       type: n.type || "default",
