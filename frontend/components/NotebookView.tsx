@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import MarkdownRenderer from "./MarkdownRenderer";
 import { streamInsight, streamAgent, ingestUrl, streamChatMessage, generateTTS } from "@/services/api";
 import { DocumentExporter } from "@/services/DocumentExporter";
@@ -365,13 +366,21 @@ export default function NotebookView({ hasDocuments, selectedDocs, onToast, onDo
       if (viewingArtifact.toolId === "graph") {
         let graphData = null;
         try {
-          // Strip markdown code fences that LLM sometimes adds (```json ... ```)
           let raw = viewingArtifact.content.trim();
-          raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+          const match = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+          if (match) {
+            raw = match[1].trim();
+          } else {
+            const startIdx = raw.indexOf('{');
+            const endIdx = raw.lastIndexOf('}');
+            if (startIdx !== -1 && endIdx !== -1) {
+              raw = raw.substring(startIdx, endIdx + 1);
+            }
+          }
+          
           if (raw.startsWith("{") && raw.endsWith("}")) {
             graphData = JSON.parse(raw);
-          } else {
-            // Partial JSON during streaming — extract nodes/edges arrays
+          } else if (viewingArtifact.status === 'loading') {
             const nodesMatch = raw.match(/"nodes"\s*:\s*(\[[\s\S]*?\])/);
             const edgesMatch = raw.match(/"edges"\s*:\s*(\[[\s\S]*?\])/);
             if (nodesMatch || edgesMatch) {
@@ -387,6 +396,11 @@ export default function NotebookView({ hasDocuments, selectedDocs, onToast, onDo
           <div className="flex-1 w-full relative bg-[#f8fafc] rounded-xl overflow-hidden" style={{ minHeight: 0 }}>
             {graphData ? (
               <KnowledgeGraph data={graphData} />
+            ) : viewingArtifact.status === 'done' ? (
+              <div className="w-full h-full flex flex-col items-center justify-center text-red-500">
+                <span className="text-sm font-medium">Failed to parse graph data.</span>
+                <span className="text-xs opacity-70 mt-1 text-center max-w-xs">The AI generated an invalid format. Check the raw text if needed.</span>
+              </div>
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center text-zinc-400">
                 <Loader2 className="w-6 h-6 animate-spin mb-4" />
@@ -412,8 +426,8 @@ export default function NotebookView({ hasDocuments, selectedDocs, onToast, onDo
       .replace(/\n\n/gim, '<p></p>')
       .replace(/\n/gim, '<br>');
 
-    return (
-      <div className={`flex flex-col animate-fade-in bg-white z-50 ${
+    const viewerContent = (
+      <div className={`flex flex-col animate-fade-in bg-white z-[60] ${
         isFullscreen
           ? "fixed inset-0 p-4"
           : "absolute inset-0 p-4"
@@ -471,6 +485,10 @@ export default function NotebookView({ hasDocuments, selectedDocs, onToast, onDo
         </div>
       </div>
     );
+
+    return isFullscreen && typeof document !== "undefined"
+      ? createPortal(viewerContent, document.body)
+      : viewerContent;
   }
 
   // ── Render Custom Prompt Modal ──────────────────────────
