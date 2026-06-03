@@ -7,6 +7,7 @@ import { Send, Loader, AlertCircle, Zap } from "lucide-react";
 
 export default function FastResearchPanel() {
   const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("all");
   const [loading, setLoading] = useState(false);
   const [answer, setAnswer] = useState("");
   const [sources, setSources] = useState<SourceCitation[]>([]);
@@ -51,18 +52,19 @@ export default function FastResearchPanel() {
       await streamFastResearch(
         query,
         5,
-        (token) => {
+        category,
+        (token: string) => {
           fullAnswer += token;
           setAnswer(fullAnswer);
         },
-        (newSources) => {
+        (newSources: SourceCitation[]) => {
           setSources(newSources);
           setShowSources(true);
         },
         () => {
           setLoading(false);
         },
-        (err) => {
+        (err: string) => {
           setError(err);
           setLoading(false);
         }
@@ -173,6 +175,17 @@ export default function FastResearchPanel() {
       {/* Input Area */}
       <div className="border-t border-slate-200 bg-white rounded-b-lg p-4">
         <div className="flex gap-2">
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            disabled={loading}
+            className="w-32 px-3 py-3 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-50 text-sm text-slate-700"
+          >
+            <option value="all">All</option>
+            <option value="academic">Academic</option>
+            <option value="news_global">News</option>
+            <option value="science">Science</option>
+          </select>
           <input
             ref={inputRef}
             type="text"
