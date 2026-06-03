@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { Notebook, ChatMessage, Document } from "@/types";
-import { streamChatMessage, listDocuments, uploadDocument, shareDocument, setTokenProvider } from "@/services/api";
+import { streamChatMessage, listDocuments, uploadDocument, shareDocument, setTokenProvider, shareNotebook } from "@/services/api";
 import MessageBubble from "@/components/MessageBubble";
 import DocumentList from "@/components/DocumentList";
 import UploadZone from "@/components/UploadButton";
@@ -14,7 +14,7 @@ import NotebookView from "@/components/NotebookView";
 import WebSearchModal from "@/components/WebSearchModal";
 import DocumentViewerModal from "@/components/DocumentViewerModal";
 import { searchWebPreview, WebSearchPreviewResult, ingestUrl } from "@/services/api";
-import { ArrowLeft, Settings, Search, Globe, ChevronDown, CheckSquare, Plus, SlidersHorizontal, MoreVertical, Loader2, Link as LinkIcon, FileText } from "lucide-react";
+import { ArrowLeft, Settings, Search, Globe, ChevronDown, CheckSquare, Plus, SlidersHorizontal, MoreVertical, Loader2, Link as LinkIcon, FileText, Share2 } from "lucide-react";
 
 const STORAGE_KEY = "folioml_notebooks";
 
@@ -246,6 +246,34 @@ export default function NotebookPage() {
     }
   }
 
+  const [sharingNotebook, setSharingNotebook] = useState(false);
+
+  async function handleShareNotebook() {
+    if (!notebook) return;
+    setSharingNotebook(true);
+    try {
+      // Create snapshot data: messages and document names
+      const snapshotDocs = allDocuments
+        .filter(d => notebook.documentIds.includes(d.id))
+        .map(d => ({ id: d.id, name: d.name, type: d.name.split('.').pop()?.toUpperCase() || 'DOC' }));
+
+      const data = {
+        documents: snapshotDocs,
+        messages: notebook.messages,
+        emoji: notebook.emoji
+      };
+      // Import shareNotebook dynamically or make sure it's imported at the top
+      const res = await shareNotebook(notebook.title, data);
+      const url = `${window.location.origin}${res.url}`;
+      await navigator.clipboard.writeText(url);
+      addToast(`Link to notebook copied to clipboard!`, "success");
+    } catch (err: any) {
+      addToast(err.message || "Failed to share notebook", "error");
+    } finally {
+      setSharingNotebook(false);
+    }
+  }
+
   async function handleSend(qo?: string) {
     const q = (qo || input).trim();
     if (!q || loading || !notebook) return;
@@ -329,6 +357,14 @@ export default function NotebookPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <button 
+            onClick={handleShareNotebook}
+            disabled={sharingNotebook}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-200 text-zinc-700 rounded-full text-[13px] font-medium hover:bg-zinc-50 transition-colors disabled:opacity-50"
+          >
+            {sharingNotebook ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+            Share Notebook
+          </button>
           <button className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-full text-[13px] font-medium hover:bg-zinc-800 transition-colors">
             <Plus className="w-4 h-4" /> Create notebook
           </button>

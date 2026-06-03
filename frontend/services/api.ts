@@ -477,3 +477,26 @@ export async function streamFastResearch(
     }
   }
 }
+
+export async function shareNotebook(title: string, data: any): Promise<{share_id: string, url: string}> {
+  const res = await apiFetch(`${API_BASE}/notebooks/share`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, data }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to share notebook" }));
+    throw new Error(err.detail || "Failed to share notebook");
+  }
+  return res.json();
+}
+
+export async function getSharedNotebook(shareId: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/share/notebook/` + shareId, {
+    headers: { "ngrok-skip-browser-warning": "true" }
+  });
+  if (!res.ok) {
+    throw new Error(res.status === 404 ? "Notebook not found or is no longer public" : "Failed to load shared notebook");
+  }
+  return res.json();
+}

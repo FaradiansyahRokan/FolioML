@@ -374,3 +374,47 @@ def read_shared_document(share_id: str):
             "source_url": source_url
         }
     }
+
+import uuid
+from datetime import datetime
+from database.connection import get_db
+
+class ShareNotebookRequest(BaseModel):
+    title: str
+    data: dict
+
+@router.post("/notebooks/share")
+def share_notebook_snapshot(
+    request: ShareNotebookRequest,
+    user_id: str = Depends(get_current_user)
+):
+    \"\"\"Share a notebook snapshot and get a public link.\"\"\"
+    share_id = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat() + "Z"
+    
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            '''INSERT INTO shared_notebooks (share_id, title, data, created_at)
+               VALUES (?, ?, ?, ?)''',
+            (share_id, request.title, json.dumps(request.data), now)
+        )
+    return {"share_id": share_id, "url": f"/share/notebook/{share_id}"}
+
+@router.get("/share/notebook/{share_id}")
+def read_shared_notebook(share_id: str):
+    \"\"\"Retrieve a publicly shared notebook snapshot.\"\"\"
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM shared_notebooks WHERE share_id = ?", (share_id,))
+        row = cursor.fetchone()
+        
+    if not row:
+        raise HTTPException(status_code=404, detail="Shared notebook not found")
+        
+    return {
+        "share_id": row["share_id"],
+        "title": row["title"],
+        "data": json.loads(row["data"]),
+        "created_at": row["created_at"]
+    }

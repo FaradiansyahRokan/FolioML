@@ -88,4 +88,14 @@ def init_db():
             )
         ''')
         
+        # Shared Notebooks table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS shared_notebooks (
+                share_id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                data TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        ''')
+        
     print(f"Database initialized at {DB_PATH}")
