@@ -98,30 +98,31 @@ export default function NotebookPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
-  // Load notebook from cloud API
+  // Setup token and load data
   useEffect(() => {
     if (isLoaded && isSignedIn) {
-      getNotebooks().then(data => {
-        const found = data.find((n: Notebook) => n.id === notebookId);
-        if (found) { setNotebook(found); }
-        else router.replace("/");
-        setLoaded(true);
-      }).catch(err => {
-        console.error(err);
-        router.replace("/");
+      setTokenProvider(getToken);
+      getToken().then((token) => {
+        if (token) {
+          // Load Notebooks
+          getNotebooks().then(data => {
+            const found = data.find((n: Notebook) => n.id === notebookId);
+            if (found) { setNotebook(found); }
+            else router.replace("/");
+            setLoaded(true);
+          }).catch(err => {
+            console.error(err);
+            router.replace("/");
+          });
+
+          // Load Documents
+          listDocuments().then(setAllDocuments).catch(() => addToast("Failed to load documents", "error"));
+        }
       });
     } else if (isLoaded && !isSignedIn) {
       router.replace("/");
     }
-  }, [isLoaded, isSignedIn, notebookId, router]);
-
-  // Provide token to api.ts and fetch documents
-  useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      setTokenProvider(getToken);
-      listDocuments().then(setAllDocuments).catch(() => addToast("Failed to load documents", "error"));
-    }
-  }, [isLoaded, isSignedIn, getToken]);
+  }, [isLoaded, isSignedIn, notebookId, router, getToken]);
 
   // Save notebook to cloud API whenever it changes
   useEffect(() => {

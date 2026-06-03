@@ -16,7 +16,7 @@ const PASTEL_COLORS = [
   "bg-[#e4f7fb]",
 ];
 
-import { getNotebooks, saveNotebook, deleteNotebook as apiDeleteNotebook } from "@/services/api";
+import { getNotebooks, saveNotebook, deleteNotebook as apiDeleteNotebook, setTokenProvider } from "@/services/api";
 import { useAuth } from "@clerk/nextjs";
 
 const STORAGE_KEY = "folioml_notebooks";
@@ -38,7 +38,7 @@ type SortMode = "recent" | "oldest" | "az" | "za";
 
 export default function HomePage() {
   const router = useRouter();
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, getToken } = useAuth();
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -61,17 +61,22 @@ export default function HomePage() {
 
   useEffect(() => {
     if (isLoaded && isSignedIn) {
-      getNotebooks().then(data => {
-        setNotebooks(data);
-        setLoaded(true);
-      }).catch(err => {
-        console.error("Failed to load notebooks", err);
-        setLoaded(true);
+      setTokenProvider(getToken);
+      getToken().then((token) => {
+        if (token) {
+          getNotebooks().then(data => {
+            setNotebooks(data);
+            setLoaded(true);
+          }).catch(err => {
+            console.error("Failed to load notebooks", err);
+            setLoaded(true);
+          });
+        }
       });
     } else if (isLoaded && !isSignedIn) {
       setLoaded(true);
     }
-  }, [isLoaded, isSignedIn]);
+  }, [isLoaded, isSignedIn, getToken]);
 
   useEffect(() => {
     if (showSearch) searchInputRef.current?.focus();
