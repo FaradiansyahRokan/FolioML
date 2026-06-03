@@ -419,21 +419,47 @@ Jelaskan secara mendalam apakah dokumen-dokumen ini saling bertentangan (kontrad
             "content": "⚔️ **[Langkah 1/2] Mengekstrak Kontradiksi & Inkonsistensi...**\n\n"
         }) + "\n"
         
-        prompt_conflicts = f"""Tugas Anda sebagai **Conflict Extractor Agent** adalah menganalisis dokumen-dokumen berikut dan menemukan kontradiksi langsung, inkonsistensi data, angka yang tidak cocok, atau ketidaksesuaian klaim antar dokumen.
+        prompt_conflicts = f"""Tugas Anda sebagai **Conflict Extractor Agent** adalah menganalisis dokumen yang disediakan berikut:
 
 Dokumen yang tersedia:
 {context_text}
 
-Tuliskan temuan Anda secara detail dengan struktur:
-## ⚔️ Kontradiksi & Inkonsistensi yang Ditemukan
-(Jika tidak ada, tuliskan "Tidak ditemukan kontradiksi langsung antara dokumen-dokumen ini.")
+Lakukan dua tahap analisis:
 
-Untuk setiap kontradiksi, sebutkan secara jelas:
-1. **Topik Konflik:** [Deskripsi singkat topik]
-2. **Dokumen A mengatakan:** [Pernyataan dari dokumen pertama]
-3. **Dokumen B mengatakan:** [Pernyataan bertentangan dari dokumen kedua]
-4. **Tingkat Keparahan:** High / Medium / Low
-5. **Analisis Kredibilitas:** Mana yang lebih logis/didukung bukti kuat dan mengapa.
+TAHAP 1:
+Periksa setiap dokumen secara independen.
+
+Cari:
+- kontradiksi internal
+- kesalahan matematika
+- jumlah yang tidak cocok
+- data vs narasi mismatch
+- statistik vs interpretasi mismatch
+- metodologi yang bertentangan
+
+TAHAP 2:
+Bandingkan antar dokumen.
+
+Cari:
+- klaim yang saling bertentangan
+- angka yang berbeda
+- kesimpulan yang berbeda
+- metodologi yang berbeda
+
+Untuk setiap temuan berikan:
+
+Jenis:
+- Internal Contradiction
+- Numerical Error
+- Data-Narrative Mismatch
+- Statistical Inconsistency
+- Cross-Document Contradiction
+
+Severity:
+Critical / High / Medium / Low
+
+Evidence:
+kutip bagian yang relevan
 """
         
         async for line in stream_llm_response(prompt_conflicts, [], "Kamu adalah AI Conflict Extractor Specialist.", model):
