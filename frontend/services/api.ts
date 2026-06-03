@@ -8,7 +8,17 @@ declare global {
   }
 }
 
+let tokenProvider: (() => Promise<string | null>) | null = null;
+
+export function setTokenProvider(provider: () => Promise<string | null>) {
+  tokenProvider = provider;
+}
+
 async function getClerkToken(): Promise<string | null> {
+  if (tokenProvider) {
+    const token = await tokenProvider();
+    if (token) return token;
+  }
   if (typeof window !== "undefined" && window.Clerk && window.Clerk.session) {
     try {
       return await window.Clerk.session.getToken();
