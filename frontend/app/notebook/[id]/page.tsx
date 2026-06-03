@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { Notebook, ChatMessage, Document } from "@/types";
 import { streamChatMessage, listDocuments, uploadDocument, shareDocument } from "@/services/api";
 import MessageBubble from "@/components/MessageBubble";
@@ -23,6 +24,7 @@ export default function NotebookPage() {
   const router = useRouter();
   const params = useParams();
   const notebookId = params?.id as string;
+  const { isLoaded, isSignedIn } = useAuth();
 
   const [notebook, setNotebook] = useState<Notebook | null>(null);
   const [allDocuments, setAllDocuments] = useState<Document[]>([]);
@@ -114,8 +116,10 @@ export default function NotebookPage() {
 
   // Load all backend documents
   useEffect(() => {
-    listDocuments().then(setAllDocuments).catch(() => addToast("Failed to load documents", "error"));
-  }, []);
+    if (isLoaded && isSignedIn) {
+      listDocuments().then(setAllDocuments).catch(() => addToast("Failed to load documents", "error"));
+    }
+  }, [isLoaded, isSignedIn]);
 
   // Save notebook to localStorage whenever it changes
   useEffect(() => {
