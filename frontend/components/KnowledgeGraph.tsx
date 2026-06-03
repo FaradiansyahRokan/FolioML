@@ -11,8 +11,6 @@ import ReactFlow, {
   NodeProps,
   Handle,
   Position,
-  useNodesState,
-  useEdgesState,
   BackgroundVariant,
 } from "reactflow";
 import "reactflow/dist/style.css";
@@ -319,17 +317,14 @@ function NodeDetail({ node, onClose }: { node: GraphNode; onClose: () => void })
 export default function KnowledgeGraph({ data }: Props) {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
 
-  const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
+  const { nodes, edges } = useMemo(() => {
     if (!data?.nodes) return { nodes: [], edges: [] };
     return buildLayout(data.nodes, data.edges || []);
   }, [data]);
 
-  const [nodes, , onNodesChange] = useNodesState(initialNodes);
-  const [edges, , onEdgesChange] = useEdgesState(initialEdges);
-
   const presentTypes = useMemo(() => {
     if (!data?.nodes) return [];
-    return [...new Set(data.nodes.map((n) => n.type || "default"))];
+    return Array.from(new Set(data.nodes.map((n) => n.type || "default")));
   }, [data]);
 
   const handleNodeClick = useCallback(
@@ -405,8 +400,6 @@ export default function KnowledgeGraph({ data }: Props) {
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
         onNodeClick={handleNodeClick}
         nodeTypes={nodeTypes}
         fitView
