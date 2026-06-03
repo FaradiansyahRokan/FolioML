@@ -385,7 +385,7 @@ export default function NotebookView({ hasDocuments, selectedDocs, onToast, onDo
         }
         
         return (
-          <div className="flex-1 w-full h-full p-4 relative bg-[#f8f9fa] rounded-xl overflow-hidden">
+          <div className="flex-1 w-full p-4 relative bg-[#f8fafc] rounded-xl overflow-hidden" style={{ minHeight: 0 }}>
             {graphData ? (
               <KnowledgeGraph data={graphData} />
             ) : (
@@ -414,7 +414,7 @@ export default function NotebookView({ hasDocuments, selectedDocs, onToast, onDo
       .replace(/\n/gim, '<br>');
 
     return (
-      <div className="flex flex-col h-full animate-fade-in bg-white absolute inset-0 z-10 p-4">
+      <div className="flex flex-col h-full animate-fade-in bg-white fixed inset-0 z-50 p-4">
         <div className="flex items-center justify-between mb-4 pb-4 border-b border-zinc-100">
           <div className="flex items-center gap-3 w-1/2">
             <button onClick={() => setViewingArtifact(null)} className="w-8 h-8 rounded-full hover:bg-zinc-100 flex items-center justify-center text-zinc-500 transition-colors shrink-0">
