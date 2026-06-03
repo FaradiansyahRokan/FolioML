@@ -39,7 +39,10 @@ def init_db():
                 page_count INTEGER DEFAULT 1,
                 chunk_count INTEGER DEFAULT 0,
                 created_at TEXT NOT NULL,
-                structured_data TEXT
+                structured_data TEXT,
+                user_id TEXT,
+                is_public INTEGER DEFAULT 0,
+                share_id TEXT
             )
         ''')
         
@@ -65,7 +68,10 @@ def init_db():
                 id TEXT PRIMARY KEY,
                 title TEXT NOT NULL,
                 created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                user_id TEXT,
+                is_public INTEGER DEFAULT 0,
+                share_id TEXT
             )
         ''')
         

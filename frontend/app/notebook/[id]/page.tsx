@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Notebook, ChatMessage, Document } from "@/types";
-import { streamChatMessage, listDocuments, uploadDocument } from "@/services/api";
+import { streamChatMessage, listDocuments, uploadDocument, shareDocument } from "@/services/api";
 import MessageBubble from "@/components/MessageBubble";
 import DocumentList from "@/components/DocumentList";
 import UploadZone from "@/components/UploadButton";
@@ -228,6 +228,17 @@ export default function NotebookPage() {
   function handleDocumentRemoved(id: number) {
     setAllDocuments((p) => p.filter((d) => d.id !== id));
     setNotebook((prev) => prev ? { ...prev, documentIds: prev.documentIds.filter((did) => did !== id), updatedAt: new Date().toISOString() } : prev);
+  }
+
+  async function handleShare(id: number, name: string) {
+    try {
+      const res = await shareDocument(id);
+      const url = `${window.location.origin}${res.url}`;
+      await navigator.clipboard.writeText(url);
+      addToast(`Link to "${name}" copied to clipboard!`, "success");
+    } catch (err: any) {
+      addToast(err.message || "Failed to generate share link", "error");
+    }
   }
 
   async function handleSend(qo?: string) {
@@ -491,6 +502,7 @@ export default function NotebookPage() {
                       onToggleSelect={toggleDocSelection}
                       onDelete={handleDocumentRemoved}
                       onView={(doc) => { setViewerDocId(doc.id); setShowDocViewer(true); }}
+                      onShare={handleShare}
                       onToast={addToast}
                       isNotebookLMStyle={true}
                     />

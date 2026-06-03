@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import { Notebook } from "@/types";
 import { Plus, MoreVertical, Search, Grid, List, ChevronDown, Settings, Trash2, Pencil, X } from "lucide-react";
+import { UserButton, SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 
 const EMOJIS = ["📚", "🔬", "💡", "🧠", "📝", "🔍", "⚗️", "🗂️", "📊", "🌐", "🧬", "🏛️", "🚀", "📓", "🤖"];
 const PASTEL_COLORS = [
@@ -214,6 +215,16 @@ export default function HomePage() {
             >
               <Plus className="w-4 h-4" /> Create new
             </button>
+            <div className="ml-2 pl-4 border-l border-zinc-200 flex items-center">
+              <SignedIn>
+                <UserButton afterSignOutUrl="/"/>
+              </SignedIn>
+              <SignedOut>
+                <SignInButton mode="modal">
+                  <button className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors">Sign In</button>
+                </SignInButton>
+              </SignedOut>
+            </div>
           </div>
         </div>
 

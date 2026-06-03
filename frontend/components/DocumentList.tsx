@@ -11,6 +11,7 @@ interface Props {
   onToggleSelect: (id: number) => void;
   onDelete: (id: number) => void;
   onView: (doc: Document) => void;
+  onShare?: (id: number, name: string) => void;
   onToast: (message: string, type: "success" | "error" | "info") => void;
   isNotebookLMStyle?: boolean;
 }
@@ -79,7 +80,7 @@ function getFileExt(name: string) {
   return name.split(".").pop()?.toUpperCase() || "DOC";
 }
 
-export default function DocumentList({ documents, selectedDocs, onToggleSelect, onDelete, onView, onToast, isNotebookLMStyle }: Props) {
+export default function DocumentList({ documents, selectedDocs, onToggleSelect, onDelete, onView, onShare, onToast, isNotebookLMStyle }: Props) {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const filteredDocs = documents.filter(doc => doc.name.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -153,6 +154,15 @@ export default function DocumentList({ documents, selectedDocs, onToggleSelect, 
               </div>
               
               <div className="flex items-center gap-2 flex-shrink-0">
+                {onShare && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onShare(doc.id, doc.name); }}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors"
+                    title="Share Document"
+                  >
+                    <Globe className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDelete(doc.id, doc.name); }}
                   disabled={deletingId === doc.id}

@@ -142,8 +142,10 @@ def _build_sources(chunks: list) -> List[dict]:
     ]
 
 
+from utils.auth import get_current_user
+
 @router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, user_id: str = Depends(get_current_user)):
     """Non-streaming RAG chat endpoint."""
     if not request.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
@@ -157,7 +159,8 @@ async def chat(request: ChatRequest):
         query_embedding, 
         top_k=request.top_k,
         document_ids=request.document_ids,
-        query_text=request.question
+        query_text=request.question,
+        user_id=user_id
     )
 
     if not chunks and request.use_web_fallback:
@@ -179,7 +182,7 @@ async def chat(request: ChatRequest):
 
 
 @router.post("/chat/stream")
-async def chat_stream(request: ChatRequest):
+async def chat_stream(request: ChatRequest, user_id: str = Depends(get_current_user)):
     """Streaming RAG chat endpoint. Returns NDJSON lines."""
     if not request.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
@@ -193,7 +196,8 @@ async def chat_stream(request: ChatRequest):
         query_embedding, 
         top_k=request.top_k, 
         document_ids=request.document_ids,
-        query_text=request.question
+        query_text=request.question,
+        user_id=user_id
     )
 
     if not chunks and request.use_web_fallback:

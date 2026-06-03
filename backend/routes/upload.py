@@ -47,8 +47,13 @@ def search_preview(query: str = Query(..., min_length=1)) -> dict:
     return {"results": results, "query": query}
 
 
+from utils.auth import get_current_user
+
 @router.post("/upload/image")
-async def upload_image(file: UploadFile = File(...)):
+async def upload_image(
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user)
+):
     """Upload an image, describe it using llava, and store the description as a document."""
     file_bytes = await file.read()
     if len(file_bytes) == 0:
@@ -87,7 +92,7 @@ async def upload_image(file: UploadFile = File(...)):
         raise HTTPException(status_code=422, detail=f"Failed to chunk image text: {str(e)}")
         
     try:
-        doc_id = add_document(filename, "image", page_count=1)
+        doc_id = add_document(filename, "image", page_count=1, user_id=user_id)
         texts_to_embed = [c["text"] for c in chunks]
         embeddings = get_embeddings_batch(texts_to_embed)
         
@@ -115,7 +120,10 @@ async def upload_image(file: UploadFile = File(...)):
 
 
 @router.post("/upload")
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user)
+):
     """Upload a document (PDF, TXT, DOCX, MD, CSV), extract text, chunk, embed, and store."""
     filename = file.filename or "unknown"
     ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -170,7 +178,8 @@ async def upload_document(file: UploadFile = File(...)):
         structured_data = structured.to_dict() if structured else {}
         document_id = add_document(
             name=filename, content=text, page_count=page_count,
-            chunk_count=len(chunks), structured_data=structured_data
+            chunk_count=len(chunks), structured_data=structured_data,
+            user_id=user_id
         )
     except Exception as e:
         print(f"[UPLOAD ERROR] Step 3 - add_document failed: {traceback.format_exc()}")
@@ -211,7 +220,10 @@ class WebSearchRequest(BaseModel):
     query: str
 
 @router.post("/ingest/web-search")
-async def ingest_web_search(request: WebSearchRequest):
+async def ingest_web_search(
+    request: WebSearchRequest,
+    user_id: str = Depends(get_current_user)
+):
     """Search DuckDuckGo and ingest the results as a document."""
     from ddgs import DDGS
     
@@ -272,7 +284,7 @@ async def ingest_web_search(request: WebSearchRequest):
     try:
         document_id = add_document(
             name=filename, content=text, page_count=1,
-            chunk_count=len(chunks)
+            chunk_count=len(chunks), user_id=user_id
         )
         store_chunks(document_id, filename, chunks, embeddings)
         update_document_chunk_count(document_id, len(chunks))
@@ -289,22 +301,22 @@ async def ingest_web_search(request: WebSearchRequest):
 
 
 @router.get("/documents")
-def list_documents():
+def list_documents(user_id: str = Depends(get_current_user)):
     """Return all uploaded documents."""
-    docs = get_all_documents()
+    docs = get_all_documents(user_id=user_id)
     return {"documents": docs}
 
 
 @router.get("/documents/stats")
-def document_stats():
+def document_stats(user_id: str = Depends(get_current_user)):
     """Return knowledge base statistics."""
-    return get_document_stats()
+    return get_document_stats(user_id=user_id)
 
 
 @router.get("/documents/{document_id}")
-def read_document(document_id: int):
+def read_document(document_id: int, user_id: str = Depends(get_current_user)):
     """Get full content of a single document."""
-    doc = get_document(document_id)
+    doc = get_document(document_id, user_id=user_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     
@@ -320,7 +332,34 @@ def read_document(document_id: int):
 
 
 @router.delete("/documents/{document_id}")
-def remove_document(document_id: int):
+def remove_document(document_id: int, user_id: str = Depends(get_current_user)):
     """Delete a document and all its chunks."""
-    delete_document(document_id)
+    delete_document(document_id, user_id=user_id)
     return {"message": f"Document {document_id} deleted successfully"}
+
+from rag.vector_store import share_document, get_shared_document
+
+@router.post("/documents/{document_id}/share")
+def create_share_link(document_id: int, user_id: str = Depends(get_current_user)):
+    """Generate a public share link for a document."""
+    try:
+        share_id = share_document(document_id, user_id)
+        return {"share_id": share_id, "url": f"/share/{share_id}"}
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+@router.get("/share/{share_id}")
+def read_shared_document(share_id: str):
+    """Retrieve a publicly shared document without authentication."""
+    doc = get_shared_document(share_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Shared document not found or is private")
+    
+    source_url = doc.get("structured", {}).get("metadata", {}).get("source_url") if isinstance(doc.get("structured"), dict) and isinstance(doc.get("structured").get("metadata"), dict) else None
+    
+    return {
+        "document": {
+            **doc,
+            "source_url": source_url
+        }
+    }

@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@clerk/nextjs": "^5.7.6",
     "katex": "^0.16.47",
     "lucide-react": "^1.16.0",
     "nanoid": "^5.0.7",

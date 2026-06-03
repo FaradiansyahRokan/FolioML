@@ -36,6 +36,9 @@ def load_from_db():
                 "chunk_count": row["chunk_count"],
                 "created_at": row["created_at"],
                 "structured": json.loads(row["structured_data"]) if row["structured_data"] else {},
+                "user_id": row["user_id"],
+                "is_public": row["is_public"],
+                "share_id": row["share_id"],
             }
             if doc_id >= _next_doc_id:
                 _next_doc_id = doc_id + 1
@@ -157,7 +160,7 @@ def _cosine_similarity(a: List[float], b: List[float]) -> float:
 
 
 def add_document(name: str, content: str, page_count: int = 1, chunk_count: int = 0,
-                 structured_data: Dict = None) -> int:
+                 structured_data: Dict = None, user_id: str = None) -> int:
     """Save a new document record to DB and memory, return its ID."""
     global _next_doc_id
     created_at = datetime.now().isoformat()
@@ -166,9 +169,9 @@ def add_document(name: str, content: str, page_count: int = 1, chunk_count: int 
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            '''INSERT INTO documents (name, content, page_count, chunk_count, created_at, structured_data)
-               VALUES (?, ?, ?, ?, ?, ?)''',
-            (name, content, page_count, chunk_count, created_at, structured_json)
+            '''INSERT INTO documents (name, content, page_count, chunk_count, created_at, structured_data, user_id, is_public, share_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL)''',
+            (name, content, page_count, chunk_count, created_at, structured_json, user_id)
         )
         doc_id = cursor.lastrowid
         
@@ -180,6 +183,9 @@ def add_document(name: str, content: str, page_count: int = 1, chunk_count: int 
         "chunk_count": chunk_count,
         "created_at": created_at,
         "structured": structured_data or {},
+        "user_id": user_id,
+        "is_public": 0,
+        "share_id": None
     }
     _next_doc_id = max(_next_doc_id, doc_id + 1)
     return doc_id
@@ -237,7 +243,7 @@ def store_chunks(document_id: int, document_name: str, chunks: List[Dict], embed
 
 
 def similarity_search(query_embedding: List[float], top_k: int = 5,
-                      document_ids: List[int] = None, query_text: str = "") -> List[Dict[str, Any]]:
+                      document_ids: List[int] = None, query_text: str = "", user_id: str = None) -> List[Dict[str, Any]]:
     """
     Hybrid retrieval: combine semantic search (cosine similarity) with 
     BM25 keyword search for better results.
@@ -247,11 +253,19 @@ def similarity_search(query_embedding: List[float], top_k: int = 5,
 
     valid_indices = []
     valid_chunks = []
+    
+    allowed_doc_ids = None
+    if user_id is not None:
+        allowed_doc_ids = {d_id for d_id, d in _documents.items() if d.get("user_id") == user_id}
+
     for idx, c in enumerate(_chunks):
         if not (c.get("embedding") and isinstance(c["embedding"], list) and len(c["embedding"]) > 0):
             continue
         if document_ids is not None and c["document_id"] not in document_ids:
             continue
+        if allowed_doc_ids is not None and c["document_id"] not in allowed_doc_ids:
+            continue
+            
         valid_indices.append(idx)
         valid_chunks.append(c)
 
@@ -339,7 +353,7 @@ def _compress_results(results: List[Dict], top_k: int) -> List[Dict]:
     return selected
 
 
-def get_all_documents() -> List[Dict[str, Any]]:
+def get_all_documents(user_id: str = None) -> List[Dict[str, Any]]:
     """Return all uploaded documents (without full content)."""
     return [
         {
@@ -350,18 +364,25 @@ def get_all_documents() -> List[Dict[str, Any]]:
             "created_at": d["created_at"],
             "source_url": d.get("structured", {}).get("metadata", {}).get("source_url") if isinstance(d.get("structured"), dict) and isinstance(d.get("structured").get("metadata"), dict) else None,
         }
-        for d in _documents.values()
+        for d in _documents.values() if not user_id or d.get("user_id") == user_id
     ]
 
 
-def get_document(document_id: int) -> Optional[Dict]:
+def get_document(document_id: int, user_id: str = None) -> Optional[Dict]:
     """Return a single document by ID (with full content)."""
-    return _documents.get(document_id)
+    doc = _documents.get(document_id)
+    if doc and user_id and doc.get("user_id") != user_id:
+        return None
+    return doc
 
 
-def delete_document(document_id: int):
+def delete_document(document_id: int, user_id: str = None):
     """Delete a document and all its chunks from memory and DB."""
     global _chunks
+    doc = _documents.get(document_id)
+    if not doc or (user_id and doc.get("user_id") != user_id):
+        return
+        
     _documents.pop(document_id, None)
     _chunks = [c for c in _chunks if c["document_id"] != document_id]
     
@@ -372,20 +393,29 @@ def delete_document(document_id: int):
     _rebuild_bm25_index()
 
 
-def get_chunks(document_ids: List[int] = None) -> List[Dict]:
-    """Return stored chunks, optionally filtered by document IDs."""
-    if document_ids is None:
-        return _chunks
-    return [c for c in _chunks if c["document_id"] in document_ids]
+def get_chunks(document_ids: List[int] = None, user_id: str = None) -> List[Dict]:
+    """Return stored chunks, optionally filtered by document IDs and user_id."""
+    res = _chunks
+    if document_ids is not None:
+        res = [c for c in res if c["document_id"] in document_ids]
+    if user_id is not None:
+        allowed_doc_ids = {d_id for d_id, d in _documents.items() if d.get("user_id") == user_id}
+        res = [c for c in res if c["document_id"] in allowed_doc_ids]
+    return res
 
 
-def get_document_stats() -> Dict:
+def get_document_stats(user_id: str = None) -> Dict:
     """Return statistics about the knowledge base."""
-    total_docs = len(_documents)
-    total_chunks = len(_chunks)
-    total_chars = sum(len(c["content"]) for c in _chunks)
+    docs = [d for d in _documents.values() if not user_id or d.get("user_id") == user_id]
+    total_docs = len(docs)
+    
+    allowed_doc_ids = {d["id"] for d in docs}
+    user_chunks = [c for c in _chunks if c["document_id"] in allowed_doc_ids]
+    
+    total_chunks = len(user_chunks)
+    total_chars = sum(len(c["content"]) for c in user_chunks)
     docs_by_type = Counter()
-    for d in _documents.values():
+    for d in docs:
         ext = d["name"].rsplit(".", 1)[-1].lower() if "." in d["name"] else "unknown"
         docs_by_type[ext] += 1
     
@@ -396,3 +426,30 @@ def get_document_stats() -> Dict:
         "documents_by_type": dict(docs_by_type),
         "avg_chunk_size": total_chars // max(total_chunks, 1),
     }
+
+import uuid
+
+def share_document(document_id: int, user_id: str) -> str:
+    """Generate a share_id for a document to make it public."""
+    doc = _documents.get(document_id)
+    if not doc or doc.get("user_id") != user_id:
+        raise ValueError("Document not found or access denied")
+        
+    if doc.get("share_id"):
+        return doc["share_id"]
+        
+    share_id = str(uuid.uuid4())
+    doc["share_id"] = share_id
+    doc["is_public"] = 1
+    
+    with get_db() as conn:
+        conn.execute("UPDATE documents SET share_id = ?, is_public = 1 WHERE id = ?", (share_id, document_id))
+        
+    return share_id
+
+def get_shared_document(share_id: str) -> Optional[Dict]:
+    """Retrieve a document by its public share_id."""
+    for d in _documents.values():
+        if d.get("share_id") == share_id and d.get("is_public") == 1:
+            return d
+    return None

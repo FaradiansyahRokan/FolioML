@@ -2,12 +2,37 @@ import { ChatResponse, Document, UploadResponse, SourceCitation } from "@/types"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
+declare global {
+  interface Window {
+    Clerk?: { session?: { getToken: () => Promise<string | null> } };
+  }
+}
+
+async function getClerkToken(): Promise<string | null> {
+  if (typeof window !== "undefined" && window.Clerk && window.Clerk.session) {
+    try {
+      return await window.Clerk.session.getToken();
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 async function apiFetch(input: RequestInfo | URL, init?: RequestInit) {
   const customInit = { ...init };
-  customInit.headers = {
-    ...customInit.headers,
-    "ngrok-skip-browser-warning": "true"
-  };
+  const headers: Record<string, string> = { "ngrok-skip-browser-warning": "true" };
+  
+  if (init?.headers) {
+    Object.assign(headers, init.headers);
+  }
+
+  const token = await getClerkToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  customInit.headers = headers;
   return fetch(input, customInit);
 }
 
@@ -42,6 +67,17 @@ export async function uploadImage(file: File): Promise<UploadResponse> {
     throw new Error(error.detail || "Image upload failed");
   }
 
+  return res.json();
+}
+
+export async function shareDocument(documentId: number): Promise<{ share_id: string, url: string }> {
+  const res = await apiFetch(`${API_BASE}/documents/${documentId}/share`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Failed to generate share link" }));
+    throw new Error(error.detail || "Failed to generate share link");
+  }
   return res.json();
 }
 
