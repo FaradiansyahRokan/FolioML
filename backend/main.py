@@ -16,7 +16,12 @@ app = FastAPI(
 # CORS — allow Next.js frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://folioml.kastik.tech",
+        "https://folioml.vercel.app",
+        "https://rag-chat-nomdb.vercel.app"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
