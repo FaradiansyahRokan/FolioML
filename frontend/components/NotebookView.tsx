@@ -8,8 +8,9 @@ import {
   BookOpen, Mic, HelpCircle, FileText, LayoutTemplate, AlertCircle,
   Map, Lightbulb, PieChart, Users, Code2, Globe, FileVideo, ShieldAlert, FlaskConical, ChevronRight, Download, Copy, Loader2, ArrowLeft,
   Sparkles, GraduationCap, Presentation, FileDown,
-  ChevronLeft, ArrowRight, Play, PenTool, MoreVertical, Search, Plus
+  ChevronLeft, ArrowRight, Play, PenTool, MoreVertical, Search, Plus, Network
 } from "lucide-react";
+import KnowledgeGraph from "./KnowledgeGraph";
 
 interface Props {
   hasDocuments: boolean;
@@ -21,6 +22,7 @@ interface Props {
 
 const ALL_TOOLS = [
   // Insights
+  { id: "graph", isAgent: false, icon: <Network className="w-4 h-4 text-purple-600" />, title: "Knowledge Graph", bg: "bg-purple-50" },
   { id: "study_guide", isAgent: false, icon: <LayoutTemplate className="w-4 h-4 text-amber-700" />, title: "Study Guide", bg: "bg-[#fef7e0]" },
   { id: "podcast", isAgent: false, icon: <Mic className="w-4 h-4 text-indigo-600" />, title: "Audio Overview", bg: "bg-indigo-50" },
   { id: "faq", isAgent: false, icon: <HelpCircle className="w-4 h-4 text-cyan-700" />, title: "FAQ Generator", bg: "bg-[#e0f7fa]" },
@@ -356,6 +358,42 @@ export default function NotebookView({ hasDocuments, selectedDocs, onToast, onDo
         return (
           <div className="max-w-2xl mx-auto py-8 px-8 bg-white shadow-sm border border-zinc-200 rounded-lg font-serif text-[15px] leading-loose text-justify my-4 text-zinc-900">
              <MarkdownRenderer content={viewingArtifact.content} isStreaming={false} />
+          </div>
+        );
+      }
+
+      if (viewingArtifact.toolId === "graph") {
+        let graphData = null;
+        try {
+          // If streaming, the JSON might be incomplete, but ReactFlow handles empty/partial arrays gracefully if parsed correctly.
+          // To avoid crash on partial JSON, we only parse if not loading, or wrap in try/catch.
+          if (viewingArtifact.content.trim().startsWith("{") && viewingArtifact.content.trim().endsWith("}")) {
+            graphData = JSON.parse(viewingArtifact.content);
+          } else {
+            // For partial JSON during streaming, we attempt a naive extraction
+            const nodesMatch = viewingArtifact.content.match(/"nodes"\s*:\s*(\[[\s\S]*?\])/);
+            const edgesMatch = viewingArtifact.content.match(/"edges"\s*:\s*(\[[\s\S]*?\])/);
+            if (nodesMatch || edgesMatch) {
+              graphData = {
+                nodes: nodesMatch ? JSON.parse(nodesMatch[1].replace(/,\s*\]$/, ']')) : [],
+                edges: edgesMatch ? JSON.parse(edgesMatch[1].replace(/,\s*\]$/, ']')) : []
+              };
+            }
+          }
+        } catch (e) {
+          // Silent catch for partial streaming JSON
+        }
+        
+        return (
+          <div className="flex-1 w-full h-full p-4 relative bg-[#f8f9fa] rounded-xl overflow-hidden">
+            {graphData ? (
+              <KnowledgeGraph data={graphData} />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center text-zinc-400">
+                <Loader2 className="w-6 h-6 animate-spin mb-4" />
+                <span className="text-sm">Extracting entities and generating graph...</span>
+              </div>
+            )}
           </div>
         );
       }
