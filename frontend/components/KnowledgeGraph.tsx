@@ -13,6 +13,8 @@ import ReactFlow, {
   Position,
   BackgroundVariant,
   Panel,
+  useNodesState,
+  useEdgesState,
 } from "reactflow";
 import "reactflow/dist/style.css";
 
@@ -146,7 +148,7 @@ function buildLayout(rawNodes: GraphNode[], rawEdges: GraphEdge[]) {
     const cur = bfsQ.shift()!;
     for (const child of outEdges[cur] ?? []) {
       const nextCol = (col[cur] ?? 0) + 1;
-      if (col[child] === undefined || col[child] < nextCol) {
+      if (col[child] === undefined) {
         col[child] = nextCol;
         bfsQ.push(child);
       }
@@ -343,10 +345,19 @@ function NodeDetail({ node, onClose }: { node: GraphNode; onClose: () => void })
 export default function KnowledgeGraph({ data }: Props) {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
 
-  const { nodes, edges } = useMemo(() => {
+  const initialLayout = useMemo(() => {
     if (!data?.nodes) return { nodes: [], edges: [] };
     return buildLayout(data.nodes, data.edges ?? []);
   }, [data]);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialLayout.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialLayout.edges);
+
+  // Sync state if data props change
+  useEffect(() => {
+    setNodes(initialLayout.nodes);
+    setEdges(initialLayout.edges);
+  }, [initialLayout, setNodes, setEdges]);
 
   const presentTypes = useMemo(
     () => Array.from(new Set((data?.nodes ?? []).map((n) => n.type || "default"))),
@@ -371,9 +382,14 @@ export default function KnowledgeGraph({ data }: Props) {
 
   return (
     <div style={{ width: "100%", height: "100%", minHeight: 520, background: "#f8fafc", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", position: "relative" }}>
+      <div style={{ position: "absolute", top: 12, left: 12, zIndex: 10, fontSize: 11, fontWeight: 600, color: "#64748b", background: "white", padding: "4px 8px", borderRadius: 6, border: "1px solid #e2e8f0", boxShadow: "0 2px 4px rgba(0,0,0,0.05)" }}>
+        {nodes.length} Nodes • {edges.length} Edges
+      </div>
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
         onNodeClick={handleNodeClick}
         onPaneClick={() => setSelectedNode(null)}
         nodeTypes={nodeTypes}
