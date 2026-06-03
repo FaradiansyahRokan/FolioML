@@ -9,6 +9,7 @@ from rag.vector_store import (
 )
 import base64
 import httpx
+import json
 
 router = APIRouter()
 
@@ -388,7 +389,7 @@ def share_notebook_snapshot(
     request: ShareNotebookRequest,
     user_id: str = Depends(get_current_user)
 ):
-    \"\"\"Share a notebook snapshot and get a public link.\"\"\"
+    """Share a notebook snapshot and get a public link."""
     share_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat() + "Z"
     
@@ -403,7 +404,7 @@ def share_notebook_snapshot(
 
 @router.get("/share/notebook/{share_id}")
 def read_shared_notebook(share_id: str):
-    \"\"\"Retrieve a publicly shared notebook snapshot.\"\"\"
+    """Retrieve a publicly shared notebook snapshot."""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM shared_notebooks WHERE share_id = ?", (share_id,))
