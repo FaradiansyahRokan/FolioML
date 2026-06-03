@@ -502,8 +502,9 @@ export async function getSharedNotebook(shareId: string): Promise<any> {
 }
 
 export async function getNotebooks(): Promise<any[]> {
-  const res = await apiFetch(`${API_BASE}/notebooks`, {
-    method: "GET"
+  const res = await apiFetch(`${API_BASE}/notebooks?t=${Date.now()}`, {
+    method: "GET",
+    cache: "no-store"
   });
   if (!res.ok) throw new Error("Failed to fetch notebooks");
   return res.json();

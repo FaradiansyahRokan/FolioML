@@ -88,14 +88,15 @@ export default function HomePage() {
 
   async function createNotebook() {
     const title = newTitle.trim() || "Untitled notebook";
+    const now = new Date().toISOString();
     const nb: Notebook = {
       id: genId(),
       title,
       emoji: newEmoji,
       documentIds: [],
       messages: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
     };
     setNotebooks((p) => [nb, ...p]);
     setCreating(false);
