@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Depends
 from pydantic import BaseModel
 import traceback
 from rag.pdf_processor import extract_text, chunk_text, SUPPORTED_EXTENSIONS
