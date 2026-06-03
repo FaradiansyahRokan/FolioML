@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import { Document } from "@/types";
 import { FileText, Loader2, Globe, Calendar } from "lucide-react";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
-import { format } from "date-fns";
 
 export default function SharedDocumentPage() {
   const params = useParams();
@@ -82,7 +81,7 @@ export default function SharedDocumentPage() {
               <div className="flex flex-wrap items-center gap-4 text-[13px] font-medium text-zinc-500">
                 <div className="flex items-center gap-1.5">
                   <Calendar className="w-4 h-4 text-zinc-400" />
-                  <span>{format(new Date(doc.created_at || Date.now()), "MMMM d, yyyy")}</span>
+                  <span>{new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(doc.created_at || Date.now()))}</span>
                 </div>
                 {doc.source_url && (
                   <div className="flex items-center gap-1.5">

@@ -60,15 +60,26 @@ Gunakan format Markdown ini SECARA KETAT untuk setiap flashcard:
 ### A: [Jawaban atau Penjelasan detail]
 ---
 
-Buat sebanyak mungkin flashcard yang relevan (minimal 10 jika dokumen cukup panjang). JANGAN gunakan format lain."""
+Buat sebanyak mungkin flashcard yang relevan (minimal 10 jika dokumen cukup panjang). JANGAN gunakan format lain""",
+    "graph": """Bertindaklah sebagai Knowledge Graph Extractor. Ekstrak entitas dan hubungan antar entitas dari teks berikut.
+Gunakan format JSON murni TANPA markdown block. Array of nodes dan edges.
+Format:
+{
+  "nodes": [{"id": "Entitas1", "label": "Entitas 1", "group": "Person/Concept/Org"}],
+  "edges": [{"source": "Entitas1", "target": "Entitas2", "label": "Hubungan"}],
+  "message": "Opsional pesan singkat"
+}"""
 }
 
+from utils.auth import get_current_user
+from fastapi import Depends
+
 @router.post("/generate")
-async def generate_insight(req: InsightRequest):
+async def generate_insight(req: InsightRequest, user_id: str = Depends(get_current_user)):
     if req.type not in PROMPTS:
         raise HTTPException(status_code=400, detail="Invalid insight type")
         
-    chunks = get_chunks(req.document_ids)
+    chunks = get_chunks(req.document_ids, user_id=user_id)
     if not chunks:
         raise HTTPException(status_code=400, detail="No documents available in the knowledge base.")
         
