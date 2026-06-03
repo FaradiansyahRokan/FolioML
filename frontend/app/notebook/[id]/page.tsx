@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { Notebook, ChatMessage, Document } from "@/types";
-import { streamChatMessage, listDocuments, uploadDocument, shareDocument } from "@/services/api";
+import { streamChatMessage, listDocuments, uploadDocument, shareDocument, setGlobalAuthToken } from "@/services/api";
 import MessageBubble from "@/components/MessageBubble";
 import DocumentList from "@/components/DocumentList";
 import UploadZone from "@/components/UploadButton";
@@ -24,7 +24,7 @@ export default function NotebookPage() {
   const router = useRouter();
   const params = useParams();
   const notebookId = params?.id as string;
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, getToken } = useAuth();
 
   const [notebook, setNotebook] = useState<Notebook | null>(null);
   const [allDocuments, setAllDocuments] = useState<Document[]>([]);
@@ -117,7 +117,12 @@ export default function NotebookPage() {
   // Load all backend documents
   useEffect(() => {
     if (isLoaded && isSignedIn) {
-      listDocuments().then(setAllDocuments).catch(() => addToast("Failed to load documents", "error"));
+      getToken().then((token) => {
+        if (token) {
+          setGlobalAuthToken(token);
+          listDocuments().then(setAllDocuments).catch(() => addToast("Failed to load documents", "error"));
+        }
+      });
     }
   }, [isLoaded, isSignedIn]);
 
