@@ -6,7 +6,7 @@ import json
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, AsyncGenerator
 from rag.vector_store import get_chunks, get_all_documents, get_document
 from services.llm_service import stream_llm_response
 
@@ -367,6 +367,112 @@ def list_agents():
     }
 
 
+async def stream_contradiction_workflow(
+    context_text: str,
+    doc_names: List[str],
+    query: Optional[str] = None,
+    model: Optional[str] = None
+) -> AsyncGenerator[str, None]:
+    """
+    Run contradiction agent workflow: triage document count,
+    then execute sequential specialized prompts (multi-agent style)
+    while streaming the outputs directly to the frontend.
+    """
+    # 1. Document verification (Triage)
+    if len(doc_names) < 2:
+        yield json.dumps({
+            "type": "token",
+            "content": (
+                "⚠️ **Kekurangan Dokumen**\n\n"
+                "Untuk menjalankan analisis deteksi kontradiksi, mohon unggah dan pilih minimal "
+                "**2 dokumen** menggunakan panel dokumen atau centang pilihan dokumen di sebelah kiri."
+            )
+        }) + "\n"
+        yield json.dumps({"type": "done"}) + "\n"
+        return
+
+    # 2. Branching based on query presence
+    if query:
+        # Specific claim verification agent
+        yield json.dumps({
+            "type": "token",
+            "content": f"🕵️ **Menganalisis klaim spesifik Anda:** *\"{query}\"*\n\n---\n\n"
+        }) + "\n"
+        
+        prompt = f"""Tugas Anda adalah memeriksa dokumen-dokumen yang disediakan secara khusus untuk menjawab klaim atau pertanyaan berikut dari pengguna:
+"{query}"
+
+Dokumen yang tersedia:
+{context_text}
+
+Jelaskan secara mendalam apakah dokumen-dokumen ini saling bertentangan (kontradiksi), mendukung satu sama lain, atau jika dokumen-dokumen tersebut tidak membahas hal ini sama sekali (silent). Berikan argumen berdasarkan kutipan/fakta dalam dokumen."""
+        
+        async for line in stream_llm_response(prompt, [], "Kamu adalah AI Expert Specialist. Lakukan analisis klaim secara objektif.", model):
+            data = json.loads(line)
+            if data.get("type") == "token":
+                yield line
+    else:
+        # General contradiction workflow (multi-agent style)
+        # Step A: Conflict Extraction Agent
+        yield json.dumps({
+            "type": "token",
+            "content": "⚔️ **[Langkah 1/2] Mengekstrak Kontradiksi & Inkonsistensi...**\n\n"
+        }) + "\n"
+        
+        prompt_conflicts = f"""Tugas Anda sebagai **Conflict Extractor Agent** adalah menganalisis dokumen-dokumen berikut dan menemukan kontradiksi langsung, inkonsistensi data, angka yang tidak cocok, atau ketidaksesuaian klaim antar dokumen.
+
+Dokumen yang tersedia:
+{context_text}
+
+Tuliskan temuan Anda secara detail dengan struktur:
+## ⚔️ Kontradiksi & Inkonsistensi yang Ditemukan
+(Jika tidak ada, tuliskan "Tidak ditemukan kontradiksi langsung antara dokumen-dokumen ini.")
+
+Untuk setiap kontradiksi, sebutkan secara jelas:
+1. **Topik Konflik:** [Deskripsi singkat topik]
+2. **Dokumen A mengatakan:** [Pernyataan dari dokumen pertama]
+3. **Dokumen B mengatakan:** [Pernyataan bertentangan dari dokumen kedua]
+4. **Tingkat Keparahan:** High / Medium / Low
+5. **Analisis Kredibilitas:** Mana yang lebih logis/didukung bukti kuat dan mengapa.
+"""
+        
+        async for line in stream_llm_response(prompt_conflicts, [], "Kamu adalah AI Conflict Extractor Specialist.", model):
+            data = json.loads(line)
+            if data.get("type") == "token":
+                yield line
+
+        # Step B: Consensus and Reliability Evaluation Agent
+        yield json.dumps({
+            "type": "token",
+            "content": "\n\n---\n\n🤝 **[Langkah 2/2] Menganalisis Konsensus & Matriks Reliabilitas...**\n\n"
+        }) + "\n"
+        
+        prompt_consensus = f"""Tugas Anda sebagai **Consensus & Reliability Agent** adalah menganalisis dokumen-dokumen berikut untuk menemukan titik kesepakatan (Consensus Points) dan mengevaluasi tingkat keandalan masing-masing dokumen.
+
+Dokumen yang tersedia:
+{context_text}
+
+Tuliskan temuan Anda secara detail dengan struktur:
+## 🤝 Poin Konsensus (Hal-Hal yang Disetujui Bersama)
+- [Poin 1]
+- [Poin 2]
+
+## 📊 Matriks Konsistensi & Keandalan Dokumen
+Berikan penilaian reliabilitas untuk masing-masing dokumen dari skala 0-100 dan berikan alasan singkat yang rasional berdasarkan analisis data dan gaya penulisan di dokumen.
+
+Format Matriks:
+- **[Nama Dokumen 1]** (Skor Konsistensi: XX/100): [Alasan]
+- **[Nama Dokumen 2]** (Skor Konsistensi: YY/100): [Alasan]
+"""
+        
+        async for line in stream_llm_response(prompt_consensus, [], "Kamu adalah AI Consensus and Reliability Specialist.", model):
+            data = json.loads(line)
+            if data.get("type") == "token":
+                yield line
+
+    yield json.dumps({"type": "done"}) + "\n"
+
+
 @router.post("/run")
 async def run_agent(req: AgentRequest):
     """Run a specific agent on selected documents."""
@@ -392,6 +498,13 @@ async def run_agent(req: AgentRequest):
             break
         context_text += chunk_entry
         doc_names.add(chunk["document_name"])
+    
+    # Intercept contradiction_detector to run custom multi-agent workflow
+    if req.agent == "contradiction_detector":
+        return StreamingResponse(
+            stream_contradiction_workflow(context_text, list(doc_names), req.query, model=agent.get('recommended_model')),
+            media_type="application/x-ndjson"
+        )
     
     # Build user message with optional query
     system_prompt = "Kamu adalah AI Expert Specialist. Ikuti instruksi tugas secara presisi."
