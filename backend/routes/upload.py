@@ -21,18 +21,29 @@ class WebSearchPreviewResult(BaseModel):
 
 
 @router.get("/search/preview")
-def search_preview(query: str = Query(..., min_length=1)) -> dict:
-    """Return DuckDuckGo search results as preview cards (no ingestion)."""
+def search_preview(query: str = Query(..., min_length=1), category: str = Query("all")) -> dict:
+    """Return DuckDuckGo search results as preview cards, filtered by category."""
     from ddgs import DDGS
     from urllib.parse import urlparse
+    from utils.trusted_sources import filter_trusted_results
+    
     try:
-        raw = DDGS().text(query, max_results=10)
+        # Fetch more to account for filtering
+        raw = DDGS().text(query, max_results=20)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+        
     if not raw:
         raise HTTPException(status_code=404, detail="No results found.")
+        
+    # Apply category filter
+    filtered = filter_trusted_results(raw, target_category=category) if category != "all" else raw
+    
+    # Take top 10 after filtering
+    filtered = filtered[:10]
+    
     results = []
-    for r in raw:
+    for r in filtered:
         url = r.get("href", "")
         try:
             domain = urlparse(url).netloc.replace("www.", "")

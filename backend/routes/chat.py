@@ -38,14 +38,15 @@ class ChatResponse(BaseModel):
     sources: List[SourceCitation]
 
 
-async def _fetch_web_fallback(query: str, max_results: int = 10, trusted_only: bool = True) -> list:
+async def _fetch_web_fallback(query: str, max_results: int = 10, trusted_only: bool = True, search_category: str = "all") -> list:
     """
-    Fetch web results from trusted sources only.
+    Fetch web results from trusted sources only, optionally filtered by category.
     
     Args:
         query: Search query
-        max_results: Max results to fetch (will be filtered to trusted only)
+        max_results: Max results to fetch
         trusted_only: If True, only return results from trusted sources
+        search_category: Optional specific category to filter by (e.g. "academic", "news_global")
     """
     import httpx
     import asyncio
@@ -65,7 +66,7 @@ async def _fetch_web_fallback(query: str, max_results: int = 10, trusted_only: b
     
     # FILTER: Only keep trusted sources
     if trusted_only:
-        filtered_results = filter_trusted_results(raw_results)
+        filtered_results = filter_trusted_results(raw_results, target_category=search_category)
         
         if not filtered_results:
             logging.warning(f"No trusted sources found for query: {query}")
@@ -242,6 +243,7 @@ class FastResearchRequest(BaseModel):
     query: str
     max_results: Optional[int] = 5
     history: Optional[List[Dict]] = None
+    category: Optional[str] = "all"
 
 
 @router.post("/research")
@@ -254,7 +256,7 @@ async def fast_research(request: FastResearchRequest):
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
 
     # Fetch from trusted web sources only
-    chunks = await _fetch_web_fallback(request.query, max_results=request.max_results or 5, trusted_only=True)
+    chunks = await _fetch_web_fallback(request.query, max_results=request.max_results or 5, trusted_only=True, search_category=request.category)
 
     if not chunks:
         return ChatResponse(
@@ -281,7 +283,7 @@ async def fast_research_stream(request: FastResearchRequest):
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
 
     # Fetch from trusted web sources only
-    chunks = await _fetch_web_fallback(request.query, max_results=request.max_results or 5, trusted_only=True)
+    chunks = await _fetch_web_fallback(request.query, max_results=request.max_results or 5, trusted_only=True, search_category=request.category)
 
     if not chunks:
         async def empty_response():

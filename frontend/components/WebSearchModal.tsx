@@ -15,6 +15,7 @@ interface Props {
 
 export default function WebSearchModal({ isOpen, onImportSuccess, onToast, onClose, initialQuery, initialResults }: Props) {
   const [query, setQuery] = useState(initialQuery || "");
+  const [category, setCategory] = useState("all");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<WebSearchPreviewResult[]>(initialResults || []);
   const [searchedQuery, setSearchedQuery] = useState(initialQuery || "");
@@ -44,7 +45,7 @@ export default function WebSearchModal({ isOpen, onImportSuccess, onToast, onClo
     setSelectedUrls(new Set());
     
     try {
-      const data = await searchWebPreview(query);
+      const data = await searchWebPreview(query, category);
       setResults(data.results);
       setSearchedQuery(data.query);
     } catch (err: unknown) {
@@ -138,6 +139,21 @@ export default function WebSearchModal({ isOpen, onImportSuccess, onToast, onClo
         {/* Search bar */}
         <form onSubmit={handleSearch} className="px-6 py-3 border-b border-ivory-100 flex-shrink-0 bg-white">
           <div className="flex gap-2">
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              disabled={loading || importingUrls.size > 0}
+              className="w-36 text-sm px-3 py-2.5 rounded-xl border border-ivory-300 focus:outline-none focus:border-iris-400 bg-zinc-50 text-zinc-700 disabled:opacity-50"
+            >
+              <option value="all">All Sources</option>
+              <option value="academic">Academic / Paper</option>
+              <option value="news_global">Global News</option>
+              <option value="news_indonesia">Berita Indonesia</option>
+              <option value="government">Government</option>
+              <option value="tech_docs">Tech Docs / GitHub</option>
+              <option value="science">Science & Health</option>
+              <option value="business">Business & Tech</option>
+            </select>
             <input
               autoFocus
               type="text"

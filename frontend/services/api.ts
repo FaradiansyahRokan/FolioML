@@ -279,8 +279,8 @@ export interface WebSearchPreviewResult {
   source_domain: string;
 }
 
-export async function searchWebPreview(query: string): Promise<{ results: WebSearchPreviewResult[]; query: string }> {
-  const res = await apiFetch(`${API_BASE}/search/preview?query=${encodeURIComponent(query)}`);
+export async function searchWebPreview(query: string, category: string = "all"): Promise<{ results: WebSearchPreviewResult[]; query: string }> {
+  const res = await apiFetch(`${API_BASE}/search/preview?query=${encodeURIComponent(query)}&category=${encodeURIComponent(category)}`);
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: "Search failed" }));
     throw new Error(error.detail || "Search failed");
@@ -386,12 +386,13 @@ export async function streamAgent(
  */
 export async function fastResearch(
   query: string,
-  maxResults: number = 5
+  maxResults: number = 5,
+  category: string = "all"
 ): Promise<ChatResponse> {
   const res = await apiFetch(`${API_BASE}/research`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, max_results: maxResults }),
+    body: JSON.stringify({ query, max_results: maxResults, category }),
   });
 
   if (!res.ok) {
@@ -408,6 +409,7 @@ export async function fastResearch(
 export async function streamFastResearch(
   query: string,
   maxResults: number = 5,
+  category: string = "all",
   onToken: (token: string) => void,
   onSources: (sources: SourceCitation[]) => void,
   onDone: () => void,
@@ -416,7 +418,7 @@ export async function streamFastResearch(
   const res = await apiFetch(`${API_BASE}/research/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, max_results: maxResults }),
+    body: JSON.stringify({ query, max_results: maxResults, category }),
   });
 
   if (!res.ok) {

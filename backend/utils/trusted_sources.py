@@ -190,24 +190,31 @@ def get_source_category(url: str) -> Optional[str]:
     return None
 
 
-def filter_trusted_results(search_results: List[dict]) -> List[dict]:
+def filter_trusted_results(search_results: List[dict], target_category: str = "all") -> List[dict]:
     """
-    Filter search results to only include trusted sources.
+    Filter search results to only include trusted sources, optionally filtered by a specific category.
     
     Args:
         search_results: List of results from DDGS
+        target_category: Optional specific category to filter by (e.g. "academic", "news_global")
     
     Returns:
-        Filtered list of results from trusted sources only
+        Filtered list of results
     """
     trusted = []
     
     for result in search_results:
         url = result.get("href", "")
-        if url and is_trusted_domain(url):
-            # Add category info
-            result["source_category"] = get_source_category(url)
-            trusted.append(result)
+        if url:
+            if target_category != "all":
+                cat = get_source_category(url)
+                if cat == target_category:
+                    result["source_category"] = cat
+                    trusted.append(result)
+            else:
+                if is_trusted_domain(url):
+                    result["source_category"] = get_source_category(url)
+                    trusted.append(result)
     
     return trusted
 
