@@ -97,5 +97,15 @@ def init_db():
                 created_at TEXT NOT NULL
             )
         ''')
+
+        # User Notebooks table (Cloud KV Store)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_notebooks (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                data TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        ''')
         
     print(f"Database initialized at {DB_PATH}")

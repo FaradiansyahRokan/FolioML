@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { Notebook, ChatMessage, Document } from "@/types";
-import { streamChatMessage, listDocuments, uploadDocument, shareDocument, setTokenProvider, shareNotebook } from "@/services/api";
+import { streamChatMessage, listDocuments, uploadDocument, shareDocument, setTokenProvider, shareNotebook, getNotebooks, saveNotebook } from "@/services/api";
 import MessageBubble from "@/components/MessageBubble";
 import DocumentList from "@/components/DocumentList";
 import UploadZone from "@/components/UploadButton";
@@ -98,21 +98,22 @@ export default function NotebookPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
-  // Load notebook from localStorage
+  // Load notebook from cloud API
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const notebooks: Notebook[] = JSON.parse(saved);
-        const found = notebooks.find((n) => n.id === notebookId);
+    if (isLoaded && isSignedIn) {
+      getNotebooks().then(data => {
+        const found = data.find((n: Notebook) => n.id === notebookId);
         if (found) { setNotebook(found); }
         else router.replace("/");
-      } else {
+        setLoaded(true);
+      }).catch(err => {
+        console.error(err);
         router.replace("/");
-      }
-    } catch { router.replace("/"); }
-    setLoaded(true);
-  }, [notebookId, router]);
+      });
+    } else if (isLoaded && !isSignedIn) {
+      router.replace("/");
+    }
+  }, [isLoaded, isSignedIn, notebookId, router]);
 
   // Provide token to api.ts and fetch documents
   useEffect(() => {
@@ -122,15 +123,10 @@ export default function NotebookPage() {
     }
   }, [isLoaded, isSignedIn, getToken]);
 
-  // Save notebook to localStorage whenever it changes
+  // Save notebook to cloud API whenever it changes
   useEffect(() => {
     if (!notebook || !loaded) return;
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      const notebooks: Notebook[] = saved ? JSON.parse(saved) : [];
-      const updated = notebooks.map((n) => n.id === notebook.id ? notebook : n);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
+    saveNotebook(notebook).catch(console.error);
   }, [notebook, loaded]);
 
   // Auto-scroll

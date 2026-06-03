@@ -16,6 +16,9 @@ const PASTEL_COLORS = [
   "bg-[#e4f7fb]",
 ];
 
+import { getNotebooks, saveNotebook, deleteNotebook as apiDeleteNotebook } from "@/services/api";
+import { useAuth } from "@clerk/nextjs";
+
 const STORAGE_KEY = "folioml_notebooks";
 
 function genId() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
@@ -35,6 +38,7 @@ type SortMode = "recent" | "oldest" | "az" | "za";
 
 export default function HomePage() {
   const router = useRouter();
+  const { isLoaded, isSignedIn } = useAuth();
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -56,16 +60,18 @@ export default function HomePage() {
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setNotebooks(JSON.parse(saved));
-    } catch {}
-    setLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    if (loaded) localStorage.setItem(STORAGE_KEY, JSON.stringify(notebooks));
-  }, [notebooks, loaded]);
+    if (isLoaded && isSignedIn) {
+      getNotebooks().then(data => {
+        setNotebooks(data);
+        setLoaded(true);
+      }).catch(err => {
+        console.error("Failed to load notebooks", err);
+        setLoaded(true);
+      });
+    } else if (isLoaded && !isSignedIn) {
+      setLoaded(true);
+    }
+  }, [isLoaded, isSignedIn]);
 
   useEffect(() => {
     if (showSearch) searchInputRef.current?.focus();
@@ -75,7 +81,7 @@ export default function HomePage() {
     if (renameId) setTimeout(() => renameInputRef.current?.select(), 50);
   }, [renameId]);
 
-  function createNotebook() {
+  async function createNotebook() {
     const title = newTitle.trim() || "Untitled notebook";
     const nb: Notebook = {
       id: genId(),
@@ -90,12 +96,22 @@ export default function HomePage() {
     setCreating(false);
     setNewTitle("");
     setNewEmoji("📓");
-    router.push(`/notebook/${nb.id}`);
+    try {
+      await saveNotebook(nb);
+      router.push(`/notebook/${nb.id}`);
+    } catch (err) {
+      console.error(err);
+    }
   }
 
-  function deleteNotebook(id: string) {
+  async function deleteNotebook(id: string) {
     setNotebooks((p) => p.filter((n) => n.id !== id));
     setDeleteId(null);
+    try {
+      await apiDeleteNotebook(id);
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   function startRename(nb: Notebook) {

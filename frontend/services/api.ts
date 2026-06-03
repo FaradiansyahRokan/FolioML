@@ -500,3 +500,27 @@ export async function getSharedNotebook(shareId: string): Promise<any> {
   }
   return res.json();
 }
+
+export async function getNotebooks(): Promise<any[]> {
+  const res = await apiFetch(`${API_BASE}/notebooks`, {
+    method: "GET"
+  });
+  if (!res.ok) throw new Error("Failed to fetch notebooks");
+  return res.json();
+}
+
+export async function saveNotebook(notebook: any): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/notebooks/${notebook.id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: notebook.id, data: notebook }),
+  });
+  if (!res.ok) throw new Error("Failed to save notebook");
+}
+
+export async function deleteNotebook(id: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/notebooks/${id}`, {
+    method: "DELETE"
+  });
+  if (!res.ok) throw new Error("Failed to delete notebook");
+}

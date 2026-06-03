@@ -6,6 +6,7 @@ from routes.insights import router as insights_router
 from routes.ingest import router as ingest_router
 from routes.agents import router as agents_router
 from routes.audio import router as audio_router
+from routes.notebooks import router as notebooks_router
 
 app = FastAPI(
     title="FolioML - AI Knowledge OS",
@@ -34,6 +35,7 @@ app.include_router(insights_router)
 app.include_router(ingest_router, prefix="/api", tags=["Ingestion"])
 app.include_router(agents_router)
 app.include_router(audio_router, prefix="/api", tags=["Audio"])
+app.include_router(notebooks_router, prefix="/api", tags=["Notebooks"])
 
 
 from database.connection import init_db
