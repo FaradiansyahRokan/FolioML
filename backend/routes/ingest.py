@@ -3,11 +3,12 @@ URL Ingestion — scrape a webpage and ingest it like a document.
 """
 import re
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from rag.pdf_processor import chunk_text, StructuredDocument, DocumentSection
 from rag.embeddings import get_embeddings_batch
 from rag.vector_store import add_document, store_chunks, update_document_chunk_count, delete_document
+from utils.auth import get_current_user
 
 router = APIRouter()
 
@@ -106,7 +107,7 @@ def _build_structured_from_markdown(text: str, url: str, title: str) -> Structur
 
 
 @router.post("/ingest/url")
-async def ingest_url(req: URLIngestRequest):
+async def ingest_url(req: URLIngestRequest, user_id: str = Depends(get_current_user)):
     """Scrape a URL, convert to text, chunk, embed, and store."""
     url = req.url.strip()
     if not url.startswith(("http://", "https://")):
@@ -173,7 +174,8 @@ async def ingest_url(req: URLIngestRequest):
     display_name = f"{title[:60]}"
     document_id = add_document(
         name=display_name, content=text, page_count=1,
-        chunk_count=len(chunks), structured_data=structured.to_dict()
+        chunk_count=len(chunks), structured_data=structured.to_dict(),
+        user_id=user_id
     )
     
     # Generate embeddings
